@@ -1,3 +1,4 @@
+// src/App.tsx
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Classes from "./pages/Classes";
 import Students from "./pages/Students";
 import Fees from "./pages/Fees";
+import Employees from "./pages/Employees"; // Import the Employees page
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -22,7 +24,10 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            {/* Authentication Route */}
             <Route path="/auth" element={<Auth />} />
+
+            {/* Authenticated Routes with Layout */}
             <Route
               path="/"
               element={
@@ -47,6 +52,14 @@ const App = () => (
                 </Layout>
               }
             />
+             <Route
+              path="/employees" // Add route for Employees
+              element={
+                <Layout>
+                  <Employees />
+                </Layout>
+              }
+            />
             <Route
               path="/fees"
               element={
@@ -55,6 +68,8 @@ const App = () => (
                 </Layout>
               }
             />
+
+            {/* Catch-all Not Found Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
