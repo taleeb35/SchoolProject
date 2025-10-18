@@ -1,3 +1,4 @@
+// src/pages/Classes.tsx
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,9 +11,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Edit } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 interface Class {
@@ -24,9 +27,10 @@ interface Class {
 
 const Classes = () => {
   const [classes, setClasses] = useState<Class[]>([]);
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [currentClass, setCurrentClass] = useState<Class | null>(null);
+  const [formData, setFormData] = useState({ name: "", description: "" });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -42,26 +46,30 @@ const Classes = () => {
     if (error) {
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to load classes",
+        title: "Error loading classes",
+        description: error.message,
       });
     } else {
       setClasses(data || []);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const resetFormData = () => {
+    setFormData({ name: "", description: "" });
+    setCurrentClass(null);
+  };
 
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     const { error } = await supabase.from("classes").insert({
-      name,
-      description,
+      name: formData.name,
+      description: formData.description || null,
     });
 
     if (error) {
       toast({
         variant: "destructive",
-        title: "Error",
+        title: "Error creating class",
         description: error.message,
       });
     } else {
@@ -69,20 +77,49 @@ const Classes = () => {
         title: "Success",
         description: "Class created successfully",
       });
-      setName("");
-      setDescription("");
-      setOpen(false);
+      resetFormData();
+      setIsAddDialogOpen(false);
+      loadClasses();
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentClass) return;
+
+    const { error } = await supabase
+      .from("classes")
+      .update({
+        name: formData.name,
+        description: formData.description || null,
+      })
+      .eq("id", currentClass.id);
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error updating class",
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Class updated successfully",
+      });
+      resetFormData();
+      setIsEditDialogOpen(false);
       loadClasses();
     }
   };
 
   const handleDelete = async (id: string) => {
+    // Optional: Add confirmation dialog here
     const { error } = await supabase.from("classes").delete().eq("id", id);
 
     if (error) {
       toast({
         variant: "destructive",
-        title: "Error",
+        title: "Error deleting class",
         description: error.message,
       });
     } else {
@@ -94,6 +131,15 @@ const Classes = () => {
     }
   };
 
+  const openEditDialog = (classItem: Class) => {
+    setCurrentClass(classItem);
+    setFormData({
+      name: classItem.name,
+      description: classItem.description || "",
+    });
+    setIsEditDialogOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -101,9 +147,9 @@ const Classes = () => {
           <h1 className="text-3xl font-bold">Classes</h1>
           <p className="text-muted-foreground">Manage your school classes</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={resetFormData}>
               <Plus className="h-4 w-4 mr-2" />
               Add Class
             </Button>
@@ -112,29 +158,36 @@ const Classes = () => {
             <DialogHeader>
               <DialogTitle>Create New Class</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleAddSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Class Name</Label>
+                <Label htmlFor="add-name">Class Name</Label>
                 <Input
-                  id="name"
+                  id="add-name"
                   placeholder="e.g., Nursery, PG, KG"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="add-description">Description</Label>
                 <Textarea
-                  id="description"
+                  id="add-description"
                   placeholder="Optional description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
                 />
               </div>
-              <Button type="submit" className="w-full">
-                Create Class
-              </Button>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button type="submit">Create Class</Button>
+              </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
@@ -146,13 +199,56 @@ const Classes = () => {
             <CardHeader>
               <CardTitle className="flex justify-between items-center">
                 {classItem.name}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleDelete(classItem.id)}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                <div className="flex items-center space-x-1">
+                   <Dialog open={isEditDialogOpen && currentClass?.id === classItem.id} onOpenChange={(open) => { if (!open) { setIsEditDialogOpen(false); resetFormData(); } else { openEditDialog(classItem); } }}>
+                     <DialogTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(classItem)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                     </DialogTrigger>
+                     {/* Edit Dialog Content - Render conditionally or manage state carefully */}
+                     {currentClass?.id === classItem.id && (
+                       <DialogContent>
+                         <DialogHeader>
+                           <DialogTitle>Edit Class: {currentClass.name}</DialogTitle>
+                         </DialogHeader>
+                         <form onSubmit={handleEditSubmit} className="space-y-4">
+                           <div className="space-y-2">
+                             <Label htmlFor="edit-name">Class Name</Label>
+                             <Input
+                               id="edit-name"
+                               value={formData.name}
+                               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                               required
+                             />
+                           </div>
+                           <div className="space-y-2">
+                             <Label htmlFor="edit-description">Description</Label>
+                             <Textarea
+                               id="edit-description"
+                               value={formData.description}
+                               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                             />
+                           </div>
+                           <DialogFooter>
+                             <DialogClose asChild>
+                                <Button type="button" variant="outline" onClick={resetFormData}>Cancel</Button>
+                             </DialogClose>
+                             <Button type="submit">Save Changes</Button>
+                           </DialogFooter>
+                         </form>
+                       </DialogContent>
+                     )}
+                   </Dialog>
+                   <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(classItem.id)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -162,6 +258,7 @@ const Classes = () => {
             </CardContent>
           </Card>
         ))}
+        {classes.length === 0 && <p>No classes found. Add a new class to get started.</p>}
       </div>
     </div>
   );
