@@ -30,7 +30,7 @@ CREATE TABLE public.employee_classes (
 -- Enable RLS on employee_classes
 ALTER TABLE public.employee_classes ENABLE ROW LEVEL SECURITY;
 
-
+--
 -- RLS Policies for employees (admin only)
 CREATE POLICY "Admins can view all employees"
   ON public.employees FOR SELECT
