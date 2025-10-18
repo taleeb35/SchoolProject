@@ -22,6 +22,7 @@ interface Class {
   id: string;
   name: string;
   description: string | null;
+  monthly_fee: number; // Added field
   created_at: string;
 }
 
@@ -30,7 +31,7 @@ const Classes = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentClass, setCurrentClass] = useState<Class | null>(null);
-  const [formData, setFormData] = useState({ name: "", description: "" });
+  const [formData, setFormData] = useState({ name: "", description: "", monthly_fee: "" }); // Added monthly_fee
   const { toast } = useToast();
 
   useEffect(() => {
@@ -55,7 +56,7 @@ const Classes = () => {
   };
 
   const resetFormData = () => {
-    setFormData({ name: "", description: "" });
+    setFormData({ name: "", description: "", monthly_fee: "" }); // Reset monthly_fee
     setCurrentClass(null);
   };
 
@@ -64,6 +65,7 @@ const Classes = () => {
     const { error } = await supabase.from("classes").insert({
       name: formData.name,
       description: formData.description || null,
+      monthly_fee: parseFloat(formData.monthly_fee) || 0, // Include monthly_fee
     });
 
     if (error) {
@@ -92,6 +94,7 @@ const Classes = () => {
       .update({
         name: formData.name,
         description: formData.description || null,
+        monthly_fee: parseFloat(formData.monthly_fee) || 0, // Include monthly_fee
       })
       .eq("id", currentClass.id);
 
@@ -136,6 +139,7 @@ const Classes = () => {
     setFormData({
       name: classItem.name,
       description: classItem.description || "",
+      monthly_fee: classItem.monthly_fee?.toString() || "", // Populate monthly_fee
     });
     setIsEditDialogOpen(true);
   };
@@ -154,42 +158,52 @@ const Classes = () => {
               Add Class
             </Button>
           </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Class</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleAddSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="add-name">Class Name</Label>
-                <Input
-                  id="add-name"
-                  placeholder="e.g., Nursery, PG, KG"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  required
-                />
+           <DialogContent>
+             <DialogHeader>
+               <DialogTitle>Create New Class</DialogTitle>
+             </DialogHeader>
+             <form onSubmit={handleAddSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4"> {/* Use grid for layout */}
+                 <div className="space-y-2">
+                   <Label htmlFor="add-name">Class Name</Label>
+                   <Input
+                     id="add-name"
+                     placeholder="e.g., Nursery, PG, KG"
+                     value={formData.name}
+                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                     required
+                   />
+                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-monthly_fee">Monthly Fee</Label>
+                  <Input
+                    id="add-monthly_fee"
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g., 1500"
+                    value={formData.monthly_fee}
+                    onChange={(e) => setFormData({ ...formData, monthly_fee: e.target.value })}
+                    required
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="add-description">Description</Label>
-                <Textarea
-                  id="add-description"
-                  placeholder="Optional description"
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                />
-              </div>
+               <div className="space-y-2">
+                 <Label htmlFor="add-description">Description</Label>
+                 <Textarea
+                   id="add-description"
+                   placeholder="Optional description"
+                   value={formData.description}
+                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                 />
+               </div>
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="outline">Cancel</Button>
                 </DialogClose>
                 <Button type="submit">Create Class</Button>
               </DialogFooter>
-            </form>
-          </DialogContent>
+             </form>
+           </DialogContent>
         </Dialog>
       </div>
 
@@ -200,28 +214,41 @@ const Classes = () => {
               <CardTitle className="flex justify-between items-center">
                 {classItem.name}
                 <div className="flex items-center space-x-1">
+                   {/* Edit Dialog Trigger and Content */}
                    <Dialog open={isEditDialogOpen && currentClass?.id === classItem.id} onOpenChange={(open) => { if (!open) { setIsEditDialogOpen(false); resetFormData(); } else { openEditDialog(classItem); } }}>
                      <DialogTrigger asChild>
                       <Button variant="ghost" size="icon" onClick={() => openEditDialog(classItem)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                      </DialogTrigger>
-                     {/* Edit Dialog Content - Render conditionally or manage state carefully */}
                      {currentClass?.id === classItem.id && (
                        <DialogContent>
                          <DialogHeader>
                            <DialogTitle>Edit Class: {currentClass.name}</DialogTitle>
                          </DialogHeader>
                          <form onSubmit={handleEditSubmit} className="space-y-4">
-                           <div className="space-y-2">
-                             <Label htmlFor="edit-name">Class Name</Label>
-                             <Input
-                               id="edit-name"
-                               value={formData.name}
-                               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                               required
-                             />
-                           </div>
+                           <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                               <Label htmlFor="edit-name">Class Name</Label>
+                               <Input
+                                 id="edit-name"
+                                 value={formData.name}
+                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                 required
+                               />
+                             </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="edit-monthly_fee">Monthly Fee</Label>
+                              <Input
+                                id="edit-monthly_fee"
+                                type="number"
+                                step="0.01"
+                                value={formData.monthly_fee}
+                                onChange={(e) => setFormData({ ...formData, monthly_fee: e.target.value })}
+                                required
+                              />
+                            </div>
+                          </div>
                            <div className="space-y-2">
                              <Label htmlFor="edit-description">Description</Label>
                              <Textarea
@@ -240,6 +267,7 @@ const Classes = () => {
                        </DialogContent>
                      )}
                    </Dialog>
+                   {/* Delete Button */}
                    <Button
                     variant="ghost"
                     size="icon"
@@ -255,6 +283,9 @@ const Classes = () => {
               <p className="text-sm text-muted-foreground">
                 {classItem.description || "No description"}
               </p>
+             <p className="text-sm font-medium mt-2">
+               Monthly Fee: ${classItem.monthly_fee?.toFixed(2) || '0.00'}
+             </p>
             </CardContent>
           </Card>
         ))}
