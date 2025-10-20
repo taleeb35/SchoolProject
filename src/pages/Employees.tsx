@@ -1,4 +1,3 @@
-// src/pages/Employees.tsx
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,13 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -23,10 +29,6 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Edit } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { formatCurrencyPKR } from "@/lib/utils"; // Import currency formatter
-
 
 interface Employee {
   id: string;
@@ -34,10 +36,9 @@ interface Employee {
   phone: string | null;
   designation: string | null;
   salary: number;
-  joining_date: string; // Keep as YYYY-MM-DD
+  joining_date: string;
   created_at: string;
-  // For displaying assigned classes
-  employee_classes: { classes: { id: string, name: string } }[];
+  employee_classes: { classes: { id: string; name: string } }[];
 }
 
 interface Class {
@@ -45,30 +46,20 @@ interface Class {
   name: string;
 }
 
-const initialFormData = {
-  id: "",
-  name: "",
-  phone: "",
-  designation: "",
-  salary: "",
-  joining_date: new Date().toISOString().split("T")[0],
-  assigned_classes: [] as string[], // Store IDs of assigned classes
-};
-
-// Define preferred class order (copy from Classes.tsx or centralize)
-const classOrder: { [key: string]: number } = {
-  "PG": 1,
-  "Nursery": 2,
-  "KG": 3,
-};
-
-
 const Employees = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [formData, setFormData] = useState(initialFormData);
+  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    phone: "",
+    designation: "",
+    salary: "",
+    joining_date: new Date().toISOString().split("T")[0],
+    class_id: "",
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -77,85 +68,63 @@ const Employees = () => {
   }, []);
 
   const loadClasses = async () => {
-     const { data, error } = await supabase.from("classes").select("id, name") // .order("name"); // Sort manually
+    const { data, error } = await supabase
+      .from("classes")
+      .select("id, name")
+      .order("name");
 
-     if (error) {
-       toast({ variant: "destructive", title: "Error loading classes", description: error.message });
-     } else if (data) {
-        const sortedData = [...data].sort((a, b) => {
-            const orderA = classOrder[a.name] || Infinity;
-            const orderB = classOrder[b.name] || Infinity;
-            if (orderA !== orderB) return orderA - orderB;
-            return a.name.localeCompare(b.name);
-        });
-        setClasses(sortedData);
-     }
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error loading classes",
+        description: error.message,
+      });
+    } else {
+      setClasses(data || []);
+    }
   };
-
 
   const loadEmployees = async () => {
     const { data, error } = await supabase
       .from("employees")
-      .select(`*, employee_classes ( classes ( id, name ) )`)
+      .select(`
+        *,
+        employee_classes (
+          classes (
+            id,
+            name
+          )
+        )
+      `)
       .order("name");
 
     if (error) {
-      toast({ variant: "destructive", title: "Error loading employees", description: error.message });
+      toast({
+        variant: "destructive",
+        title: "Error loading employees",
+        description: error.message,
+      });
     } else {
-       const formattedData = (data || []).map(emp => ({
-        ...emp,
-        joining_date: emp.joining_date ? new Date(emp.joining_date).toISOString().split("T")[0] : '',
-      }));
-      setEmployees(formattedData as Employee[]);
+      setEmployees(data as Employee[]);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target;
-    setFormData((prev) => ({ ...prev, [id]: value }));
+  const resetFormData = () => {
+    setFormData({
+      name: "",
+      phone: "",
+      designation: "",
+      salary: "",
+      joining_date: new Date().toISOString().split("T")[0],
+      class_id: "",
+    });
+    setCurrentEmployee(null);
   };
-
-   const handleClassAssignmentChange = (classId: string, checked: boolean | string) => {
-     setFormData((prev) => {
-       const currentAssigned = prev.assigned_classes;
-       if (checked) {
-         return { ...prev, assigned_classes: [...currentAssigned, classId] };
-       } else {
-         return { ...prev, assigned_classes: currentAssigned.filter(id => id !== classId) };
-       }
-     });
-   };
-
-  const resetForm = () => {
-    setFormData(initialFormData);
-    setIsAddDialogOpen(false);
-    setIsEditDialogOpen(false);
-  };
-
-  // Helper to manage class assignments in the junction table
-  const syncClassAssignments = async (employeeId: string, assignedClassIds: string[]) => {
-    const { data: currentAssignments, error: fetchError } = await supabase
-      .from('employee_classes').select('class_id').eq('employee_id', employeeId);
-    if (fetchError) return fetchError;
-    const currentClassIds = currentAssignments?.map(a => a.class_id) || [];
-    const classesToAdd = assignedClassIds.filter(id => !currentClassIds.includes(id));
-    const classesToRemove = currentClassIds.filter(id => !assignedClassIds.includes(id));
-    if (classesToRemove.length > 0) {
-      const { error: deleteError } = await supabase.from('employee_classes').delete().eq('employee_id', employeeId).in('class_id', classesToRemove);
-      if (deleteError) return deleteError;
-    }
-    if (classesToAdd.length > 0) {
-      const assignmentsToInsert = classesToAdd.map(classId => ({ employee_id: employeeId, class_id: classId }));
-      const { error: insertError } = await supabase.from('employee_classes').insert(assignmentsToInsert);
-      if (insertError) return insertError;
-    }
-     return null; // Success
-  };
-
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data: newEmployeeData, error: insertError } = await supabase
+    
+    const { data: newEmployee, error: insertError } = await supabase
       .from("employees")
       .insert({
         name: formData.name,
@@ -163,25 +132,51 @@ const Employees = () => {
         designation: formData.designation || null,
         salary: parseFloat(formData.salary) || 0,
         joining_date: formData.joining_date,
-      }).select('id').single();
+      })
+      .select()
+      .single();
 
-    if (insertError || !newEmployeeData) {
-      toast({ variant: "destructive", title: "Error adding employee", description: insertError?.message || "Failed to get new employee ID" });
+    if (insertError || !newEmployee) {
+      toast({
+        variant: "destructive",
+        title: "Error creating employee",
+        description: insertError?.message,
+      });
       return;
     }
-    const assignmentError = await syncClassAssignments(newEmployeeData.id, formData.assigned_classes);
-     if (assignmentError) {
-       toast({ variant: "destructive", title: "Error assigning classes", description: assignmentError.message + ". Employee created, but assignment failed." });
-     } else {
-      toast({ title: "Success", description: "Employee added successfully" });
-      resetForm();
-      loadEmployees();
-     }
+
+    // Assign class if selected
+    if (formData.class_id) {
+      const { error: assignError } = await supabase
+        .from("employee_classes")
+        .insert({
+          employee_id: newEmployee.id,
+          class_id: formData.class_id,
+        });
+
+      if (assignError) {
+        toast({
+          variant: "destructive",
+          title: "Error assigning class",
+          description: assignError.message,
+        });
+        return;
+      }
+    }
+
+    toast({
+      title: "Success",
+      description: "Employee created successfully",
+    });
+    resetFormData();
+    setIsAddDialogOpen(false);
+    loadEmployees();
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.id) return;
+    if (!currentEmployee) return;
+
     const { error: updateError } = await supabase
       .from("employees")
       .update({
@@ -190,87 +185,84 @@ const Employees = () => {
         designation: formData.designation || null,
         salary: parseFloat(formData.salary) || 0,
         joining_date: formData.joining_date,
-      }).eq("id", formData.id);
-     if (updateError) {
-       toast({ variant: "destructive", title: "Error updating employee details", description: updateError.message });
-       return;
-     }
-     const assignmentError = await syncClassAssignments(formData.id, formData.assigned_classes);
-      if (assignmentError) {
-        toast({ variant: "destructive", title: "Error updating class assignments", description: assignmentError.message + ". Details updated, but assignments failed." });
-      } else {
-       toast({ title: "Success", description: "Employee updated successfully" });
-       resetForm();
-       loadEmployees();
+      })
+      .eq("id", currentEmployee.id);
+
+    if (updateError) {
+      toast({
+        variant: "destructive",
+        title: "Error updating employee",
+        description: updateError.message,
+      });
+      return;
+    }
+
+    // Update class assignment
+    // First delete existing assignments
+    await supabase
+      .from("employee_classes")
+      .delete()
+      .eq("employee_id", currentEmployee.id);
+
+    // Then add new assignment if selected
+    if (formData.class_id) {
+      const { error: assignError } = await supabase
+        .from("employee_classes")
+        .insert({
+          employee_id: currentEmployee.id,
+          class_id: formData.class_id,
+        });
+
+      if (assignError) {
+        toast({
+          variant: "destructive",
+          title: "Error assigning class",
+          description: assignError.message,
+        });
+        return;
       }
+    }
+
+    toast({
+      title: "Success",
+      description: "Employee updated successfully",
+    });
+    resetFormData();
+    setIsEditDialogOpen(false);
+    loadEmployees();
   };
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("employees").delete().eq("id", id);
+
     if (error) {
-      toast({ variant: "destructive", title: "Error deleting employee", description: error.message });
+      toast({
+        variant: "destructive",
+        title: "Error deleting employee",
+        description: error.message,
+      });
     } else {
-      toast({ title: "Success", description: "Employee deleted successfully" });
+      toast({
+        title: "Success",
+        description: "Employee deleted successfully",
+      });
       loadEmployees();
     }
   };
 
-    const openEditDialog = (employee: Employee) => {
-     const assignedIds = employee.employee_classes?.map(ec => ec.classes.id) || [];
+  const openEditDialog = (employee: Employee) => {
+    setCurrentEmployee(employee);
+    const assignedClassId = employee.employee_classes?.[0]?.classes?.id || "";
     setFormData({
-      id: employee.id,
       name: employee.name,
       phone: employee.phone || "",
       designation: employee.designation || "",
       salary: employee.salary.toString(),
       joining_date: employee.joining_date,
-      assigned_classes: assignedIds,
+      class_id: assignedClassId,
     });
     setIsEditDialogOpen(true);
   };
-
-  // Common Form Fields Component
-  const EmployeeFormFields = () => (
-    <>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Employee Name *</Label>
-          <Input id="name" value={formData.name} onChange={handleInputChange} required />
-        </div>
-         <div className="space-y-2">
-          <Label htmlFor="designation">Designation</Label>
-          <Input id="designation" value={formData.designation} onChange={handleInputChange} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="phone">Phone</Label>
-          <Input id="phone" type="tel" value={formData.phone} onChange={handleInputChange} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="salary">Salary (PKR) *</Label>
-          <Input id="salary" type="number" step="0.01" value={formData.salary} onChange={handleInputChange} required />
-        </div>
-        <div className="space-y-2 col-span-2"> {/* Joining date takes full width */}
-          <Label htmlFor="joining_date">Joining Date *</Label>
-          <Input id="joining_date" type="date" value={formData.joining_date} onChange={handleInputChange} required className="w-full md:w-1/2"/> {/* Adjust width */}
-        </div>
-      </div>
-       <div className="space-y-2">
-          <Label>Assign Classes</Label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 border p-3 rounded-md max-h-40 overflow-y-auto">
-            {classes.length > 0 ? classes.map((cls) => (
-              <div key={cls.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`class-${cls.id}`}
-                  checked={formData.assigned_classes.includes(cls.id)}
-                  onCheckedChange={(checked) => handleClassAssignmentChange(cls.id, checked)}
-                />
-                <label htmlFor={`class-${cls.id}`} className="text-sm font-medium leading-none">{cls.name}</label>
-              </div>
-            )) : <p className="text-sm text-muted-foreground col-span-full">No classes available.</p>}
-          </div>
-        </div>
-    </>
-  );
 
   return (
     <div className="space-y-6">
@@ -281,70 +273,232 @@ const Employees = () => {
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setFormData(initialFormData)}><Plus className="h-4 w-4 mr-2" />Add Employee</Button>
+            <Button onClick={resetFormData}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Employee
+            </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
-            <DialogHeader><DialogTitle>Add New Employee</DialogTitle></DialogHeader>
-            <form onSubmit={handleAddSubmit} className="space-y-4"><EmployeeFormFields /><DialogFooter><DialogClose asChild><Button type="button" variant="outline" onClick={resetForm}>Cancel</Button></DialogClose><Button type="submit">Add Employee</Button></DialogFooter></form>
+            <DialogHeader>
+              <DialogTitle>Add New Employee</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleAddSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="add-name">Employee Name</Label>
+                  <Input
+                    id="add-name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-designation">Designation</Label>
+                  <Input
+                    id="add-designation"
+                    value={formData.designation}
+                    onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-phone">Phone</Label>
+                  <Input
+                    id="add-phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-salary">Salary</Label>
+                  <Input
+                    id="add-salary"
+                    type="number"
+                    step="0.01"
+                    value={formData.salary}
+                    onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-joining_date">Joining Date</Label>
+                  <Input
+                    id="add-joining_date"
+                    type="date"
+                    value={formData.joining_date}
+                    onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-class">Assign Class</Label>
+                  <Select
+                    value={formData.class_id}
+                    onValueChange={(value) => setFormData({ ...formData, class_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select class (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          {cls.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button type="submit">Add Employee</Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
 
-       {/* Edit Dialog */}
-       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-         <DialogContent className="max-w-2xl">
-           <DialogHeader><DialogTitle>Edit Employee: {formData.name}</DialogTitle></DialogHeader>
-           <form onSubmit={handleEditSubmit} className="space-y-4"><EmployeeFormFields /><DialogFooter><DialogClose asChild><Button type="button" variant="outline" onClick={resetForm}>Cancel</Button></DialogClose><Button type="submit">Save Changes</Button></DialogFooter></form>
-         </DialogContent>
-       </Dialog>
-
-      {/* Employee Table */}
-      <div className="border rounded-lg overflow-x-auto">
+      <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Designation</TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>Salary (PKR)</TableHead>
+              <TableHead>Salary</TableHead>
               <TableHead>Joining Date</TableHead>
-               <TableHead>Assigned Classes</TableHead>
+              <TableHead>Assigned Class</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {employees.length > 0 ? (
-                employees.map((employee) => (
+              employees.map((employee) => (
                 <TableRow key={employee.id}>
-                    <TableCell>{employee.name}</TableCell>
-                    <TableCell>{employee.designation || "-"}</TableCell>
-                    <TableCell>{employee.phone || "-"}</TableCell>
-                    {/* Display formatted currency */}
-                    <TableCell>{formatCurrencyPKR(employee.salary)}</TableCell>
-                    <TableCell>{employee.joining_date ? new Date(employee.joining_date + 'T00:00:00').toLocaleDateString() : "-"}</TableCell>
-                     <TableCell>
-                      <div className="flex flex-wrap gap-1 max-w-xs">
-                        {employee.employee_classes?.length > 0
-                          ? employee.employee_classes.map(ec => (
-                              <Badge key={ec.classes.id} variant="secondary">{ec.classes.name}</Badge>
-                            ))
-                          : "-"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(employee)}><Edit className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(employee.id)} className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                    </TableCell>
+                  <TableCell className="font-medium">{employee.name}</TableCell>
+                  <TableCell>{employee.designation || "-"}</TableCell>
+                  <TableCell>{employee.phone || "-"}</TableCell>
+                  <TableCell>${employee.salary.toFixed(2)}</TableCell>
+                  <TableCell>{new Date(employee.joining_date).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    {employee.employee_classes?.[0]?.classes?.name || "-"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEditDialog(employee)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(employee.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
-                ))
+              ))
             ) : (
-                 <TableRow>
-                    <TableCell colSpan={7} className="text-center">No employees found.</TableCell>
-                </TableRow>
+              <TableRow>
+                <TableCell colSpan={7} className="text-center">
+                  No employees found. Add a new employee to get started.
+                </TableCell>
+              </TableRow>
             )}
-            </TableBody>
+          </TableBody>
         </Table>
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Employee: {currentEmployee?.name}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Employee Name</Label>
+                <Input
+                  id="edit-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-designation">Designation</Label>
+                <Input
+                  id="edit-designation"
+                  value={formData.designation}
+                  onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-phone">Phone</Label>
+                <Input
+                  id="edit-phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-salary">Salary</Label>
+                <Input
+                  id="edit-salary"
+                  type="number"
+                  step="0.01"
+                  value={formData.salary}
+                  onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-joining_date">Joining Date</Label>
+                <Input
+                  id="edit-joining_date"
+                  type="date"
+                  value={formData.joining_date}
+                  onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-class">Assign Class</Label>
+                <Select
+                  value={formData.class_id}
+                  onValueChange={(value) => setFormData({ ...formData, class_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select class (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" onClick={resetFormData}>Cancel</Button>
+              </DialogClose>
+              <Button type="submit">Save Changes</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
