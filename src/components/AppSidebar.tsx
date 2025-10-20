@@ -23,17 +23,20 @@ const menuItems = [
   { title: "Fee Management", url: "/fees", icon: DollarSign },
 ];
 
+// src/components/AppSidebar.tsx (Relevant Snippet)
+// ...imports including cn from "@/lib/utils"
+
+// ...menuItems array...
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const { signOut } = useAuth();
   const collapsed = state === "collapsed";
 
   return (
-    // You can adjust the width here if needed, or keep it dynamic
     <Sidebar collapsible="icon" className={collapsed ? "w-14" : "w-60"}>
       <SidebarContent>
         <SidebarGroup>
-          {/* Label is hidden when collapsed */}
           <SidebarGroupLabel>School Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -41,23 +44,21 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    // Add tooltip when collapsed
                     tooltip={collapsed ? item.title : undefined}
                    >
                     <NavLink
                       to={item.url}
-                      end // Use 'end' for exact match on dashboard link
+                      // Use 'end' prop for exact matching on base route "/" if needed
+                      end={item.url === "/"}
                       className={({ isActive }) =>
                         cn(
-                          "flex items-center gap-2", // Ensure layout consistency
-                          isActive
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                            : ""
+                          "flex items-center gap-2", // Base styles for layout
+                          // Conditional styles for active link
+                          isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
                         )
                       }
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
-                      {/* Text is only visible when expanded */}
                       {!collapsed && <span className="truncate">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -77,7 +78,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      {/* Optional: Add SidebarFooter if needed */}
     </Sidebar>
   );
 };
