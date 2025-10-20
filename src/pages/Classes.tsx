@@ -4,7 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -207,89 +214,96 @@ const Classes = () => {
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {classes.map((classItem) => (
-          <Card key={classItem.id}>
-            <CardHeader>
-              <CardTitle className="flex justify-between items-center">
-                {classItem.name}
-                <div className="flex items-center space-x-1">
-                   {/* Edit Dialog Trigger and Content */}
-                   <Dialog open={isEditDialogOpen && currentClass?.id === classItem.id} onOpenChange={(open) => { if (!open) { setIsEditDialogOpen(false); resetFormData(); } else { openEditDialog(classItem); } }}>
-                     <DialogTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(classItem)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                     </DialogTrigger>
-                     {currentClass?.id === classItem.id && (
-                       <DialogContent>
-                         <DialogHeader>
-                           <DialogTitle>Edit Class: {currentClass.name}</DialogTitle>
-                         </DialogHeader>
-                         <form onSubmit={handleEditSubmit} className="space-y-4">
-                           <div className="grid grid-cols-2 gap-4">
-                             <div className="space-y-2">
-                               <Label htmlFor="edit-name">Class Name</Label>
-                               <Input
-                                 id="edit-name"
-                                 value={formData.name}
-                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                 required
-                               />
-                             </div>
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Class Name</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Monthly Fee</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {classes.length > 0 ? (
+              classes.map((classItem) => (
+                <TableRow key={classItem.id}>
+                  <TableCell className="font-medium">{classItem.name}</TableCell>
+                  <TableCell>{classItem.description || "No description"}</TableCell>
+                  <TableCell>${classItem.monthly_fee?.toFixed(2) || '0.00'}</TableCell>
+                  <TableCell className="text-right">
+                    <Dialog open={isEditDialogOpen && currentClass?.id === classItem.id} onOpenChange={(open) => { if (!open) { setIsEditDialogOpen(false); resetFormData(); } else { openEditDialog(classItem); } }}>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(classItem)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      {currentClass?.id === classItem.id && (
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Edit Class: {currentClass.name}</DialogTitle>
+                          </DialogHeader>
+                          <form onSubmit={handleEditSubmit} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="edit-name">Class Name</Label>
+                                <Input
+                                  id="edit-name"
+                                  value={formData.name}
+                                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="edit-monthly_fee">Monthly Fee</Label>
+                                <Input
+                                  id="edit-monthly_fee"
+                                  type="number"
+                                  step="0.01"
+                                  value={formData.monthly_fee}
+                                  onChange={(e) => setFormData({ ...formData, monthly_fee: e.target.value })}
+                                  required
+                                />
+                              </div>
+                            </div>
                             <div className="space-y-2">
-                              <Label htmlFor="edit-monthly_fee">Monthly Fee</Label>
-                              <Input
-                                id="edit-monthly_fee"
-                                type="number"
-                                step="0.01"
-                                value={formData.monthly_fee}
-                                onChange={(e) => setFormData({ ...formData, monthly_fee: e.target.value })}
-                                required
+                              <Label htmlFor="edit-description">Description</Label>
+                              <Textarea
+                                id="edit-description"
+                                value={formData.description}
+                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                               />
                             </div>
-                          </div>
-                           <div className="space-y-2">
-                             <Label htmlFor="edit-description">Description</Label>
-                             <Textarea
-                               id="edit-description"
-                               value={formData.description}
-                               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                             />
-                           </div>
-                           <DialogFooter>
-                             <DialogClose asChild>
+                            <DialogFooter>
+                              <DialogClose asChild>
                                 <Button type="button" variant="outline" onClick={resetFormData}>Cancel</Button>
-                             </DialogClose>
-                             <Button type="submit">Save Changes</Button>
-                           </DialogFooter>
-                         </form>
-                       </DialogContent>
-                     )}
-                   </Dialog>
-                   {/* Delete Button */}
-                   <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(classItem.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                {classItem.description || "No description"}
-              </p>
-             <p className="text-sm font-medium mt-2">
-               Monthly Fee: ${classItem.monthly_fee?.toFixed(2) || '0.00'}
-             </p>
-            </CardContent>
-          </Card>
-        ))}
-        {classes.length === 0 && <p>No classes found. Add a new class to get started.</p>}
+                              </DialogClose>
+                              <Button type="submit">Save Changes</Button>
+                            </DialogFooter>
+                          </form>
+                        </DialogContent>
+                      )}
+                    </Dialog>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(classItem.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center">
+                  No classes found. Add a new class to get started.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

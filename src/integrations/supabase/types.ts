@@ -38,6 +38,72 @@ export type Database = {
         }
         Relationships: []
       }
+      employee_classes: {
+        Row: {
+          class_id: string
+          created_at: string
+          employee_id: string
+          id: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          employee_id: string
+          id?: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          employee_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_classes_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_classes_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          created_at: string
+          designation: string | null
+          id: string
+          joining_date: string
+          name: string
+          phone: string | null
+          salary: number
+        }
+        Insert: {
+          created_at?: string
+          designation?: string | null
+          id?: string
+          joining_date?: string
+          name: string
+          phone?: string | null
+          salary?: number
+        }
+        Update: {
+          created_at?: string
+          designation?: string | null
+          id?: string
+          joining_date?: string
+          name?: string
+          phone?: string | null
+          salary?: number
+        }
+        Relationships: []
+      }
       fee_records: {
         Row: {
           amount: number
@@ -87,9 +153,10 @@ export type Database = {
           class_id: string
           created_at: string
           father_name: string | null
+          first_name: string
           id: string
           joining_date: string
-          name: string
+          last_name: string
           phone: string | null
           total_fee: number
         }
@@ -97,9 +164,10 @@ export type Database = {
           class_id: string
           created_at?: string
           father_name?: string | null
+          first_name: string
           id?: string
           joining_date?: string
-          name: string
+          last_name: string
           phone?: string | null
           total_fee?: number
         }
@@ -107,9 +175,10 @@ export type Database = {
           class_id?: string
           created_at?: string
           father_name?: string | null
+          first_name?: string
           id?: string
           joining_date?: string
-          name?: string
+          last_name?: string
           phone?: string | null
           total_fee?: number
         }

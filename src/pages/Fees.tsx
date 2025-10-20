@@ -23,7 +23,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 interface Student {
   id: string;
-  name: string;
+  first_name: string;
+  last_name: string;
   total_fee: number;
 }
 
@@ -73,9 +74,9 @@ const Fees = () => {
   const loadStudents = async (classId: string) => {
     const { data: studentsData, error: studentsError } = await supabase
       .from("students")
-      .select("id, name, total_fee")
+      .select("id, first_name, last_name, total_fee")
       .eq("class_id", classId)
-      .order("name");
+      .order("first_name");
 
     if (studentsError) {
       toast({
@@ -205,7 +206,7 @@ const Fees = () => {
                 const isPaid = getStudentFeeStatus(student.id);
                 return (
                   <TableRow key={student.id}>
-                    <TableCell>{student.name}</TableCell>
+                    <TableCell>{student.first_name} {student.last_name}</TableCell>
                     <TableCell>${student.total_fee}</TableCell>
                     <TableCell>
                       {isPaid ? (
