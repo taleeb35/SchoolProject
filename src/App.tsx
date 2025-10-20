@@ -10,7 +10,6 @@ import Dashboard from "./pages/Dashboard";
 import Classes from "./pages/Classes";
 import Students from "./pages/Students";
 import Fees from "./pages/Fees";
-import Employees from "./pages/Employees"; // Import the Employees page
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -49,14 +48,6 @@ const App = () => (
               element={
                 <Layout>
                   <Students />
-                </Layout>
-              }
-            />
-             <Route
-              path="/employees" // Add route for Employees
-              element={
-                <Layout>
-                  <Employees />
                 </Layout>
               }
             />

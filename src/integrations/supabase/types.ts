@@ -19,18 +19,21 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          monthly_fee: number
           name: string
         }
         Insert: {
           created_at?: string
           description?: string | null
           id?: string
+          monthly_fee?: number
           name: string
         }
         Update: {
           created_at?: string
           description?: string | null
           id?: string
+          monthly_fee?: number
           name?: string
         }
         Relationships: []
