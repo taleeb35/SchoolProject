@@ -74,6 +74,36 @@ export type Database = {
           },
         ]
       }
+      employee_salaries: {
+        Row: {
+          amount: number
+          created_at: string
+          employee_id: string
+          id: string
+          month: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          employee_id: string
+          id?: string
+          month: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          employee_id?: string
+          id?: string
+          month?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
           created_at: string

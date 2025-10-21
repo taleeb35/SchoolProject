@@ -26,8 +26,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Pencil } from "lucide-react";
 
 interface Expense {
   id: string;
@@ -37,13 +38,38 @@ interface Expense {
   amount: number;
 }
 
+interface Employee {
+  id: string;
+  name: string;
+  salary: number;
+}
+
+interface EmployeeSalary {
+  id: string;
+  employee_id: string;
+  month: number;
+  year: number;
+  amount: number;
+  employee?: {
+    name: string;
+  };
+}
+
 const Expenses = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeeSalaries, setEmployeeSalaries] = useState<EmployeeSalary[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
+  const [isSalaryDialogOpen, setIsSalaryDialogOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [newExpense, setNewExpense] = useState({
     description: "",
+    amount: "",
+  });
+  const [newSalary, setNewSalary] = useState({
+    employee_id: "",
     amount: "",
   });
   const [profitLoss, setProfitLoss] = useState({
@@ -71,6 +97,8 @@ const Expenses = () => {
 
   useEffect(() => {
     loadExpenses();
+    loadEmployees();
+    loadEmployeeSalaries();
     calculateProfitLoss();
   }, [selectedMonth, selectedYear]);
 
@@ -93,8 +121,55 @@ const Expenses = () => {
     }
   };
 
+  const loadEmployees = async () => {
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id, name, salary")
+      .order("name");
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load employees",
+      });
+    } else {
+      setEmployees(data || []);
+    }
+  };
+
+  const loadEmployeeSalaries = async () => {
+    const { data, error } = await supabase
+      .from("employee_salaries")
+      .select(`
+        id,
+        employee_id,
+        month,
+        year,
+        amount,
+        employees (name)
+      `)
+      .eq("month", selectedMonth)
+      .eq("year", selectedYear)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load employee salaries",
+      });
+    } else {
+      const formattedData = data?.map(item => ({
+        ...item,
+        employee: Array.isArray(item.employees) ? item.employees[0] : item.employees
+      })) || [];
+      setEmployeeSalaries(formattedData);
+    }
+  };
+
   const calculateProfitLoss = async () => {
-    // Calculate total fees collected
+    // Calculate total fees collected (using student total_fee from fee_records)
     const { data: feeData } = await supabase
       .from("fee_records")
       .select("amount")
@@ -104,12 +179,14 @@ const Expenses = () => {
 
     const totalFees = feeData?.reduce((sum, record) => sum + Number(record.amount), 0) || 0;
 
-    // Calculate total employee salaries
-    const { data: employeeData } = await supabase
-      .from("employees")
-      .select("salary");
+    // Calculate total employee salaries for this month
+    const { data: salaryData } = await supabase
+      .from("employee_salaries")
+      .select("amount")
+      .eq("month", selectedMonth)
+      .eq("year", selectedYear);
 
-    const totalSalaries = employeeData?.reduce((sum, emp) => sum + Number(emp.salary), 0) || 0;
+    const totalSalaries = salaryData?.reduce((sum, sal) => sum + Number(sal.amount), 0) || 0;
 
     // Calculate total other expenses
     const { data: expenseData } = await supabase
@@ -159,7 +236,44 @@ const Expenses = () => {
         description: "Expense added successfully",
       });
       setNewExpense({ description: "", amount: "" });
-      setIsDialogOpen(false);
+      setIsExpenseDialogOpen(false);
+      loadExpenses();
+      calculateProfitLoss();
+    }
+  };
+
+  const handleEditExpense = async () => {
+    if (!editingExpense || !newExpense.description || !newExpense.amount) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please fill in all fields",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("expenses")
+      .update({
+        description: newExpense.description,
+        amount: parseFloat(newExpense.amount),
+      })
+      .eq("id", editingExpense.id);
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update expense",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Expense updated successfully",
+      });
+      setNewExpense({ description: "", amount: "" });
+      setEditingExpense(null);
+      setIsExpenseDialogOpen(false);
       loadExpenses();
       calculateProfitLoss();
     }
@@ -187,51 +301,100 @@ const Expenses = () => {
     }
   };
 
+  const handleAddSalary = async () => {
+    if (!newSalary.employee_id || !newSalary.amount) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select an employee and enter amount",
+      });
+      return;
+    }
+
+    // Check if salary already exists for this employee in this month
+    const { data: existing } = await supabase
+      .from("employee_salaries")
+      .select("id")
+      .eq("employee_id", newSalary.employee_id)
+      .eq("month", selectedMonth)
+      .eq("year", selectedYear)
+      .maybeSingle();
+
+    if (existing) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Salary already recorded for this employee in this month",
+      });
+      return;
+    }
+
+    const { error } = await supabase.from("employee_salaries").insert({
+      employee_id: newSalary.employee_id,
+      month: selectedMonth,
+      year: selectedYear,
+      amount: parseFloat(newSalary.amount),
+    });
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to add salary",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Salary added successfully",
+      });
+      setNewSalary({ employee_id: "", amount: "" });
+      setIsSalaryDialogOpen(false);
+      loadEmployeeSalaries();
+      calculateProfitLoss();
+    }
+  };
+
+  const handleDeleteSalary = async (id: string) => {
+    const { error } = await supabase
+      .from("employee_salaries")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete salary",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Salary deleted successfully",
+      });
+      loadEmployeeSalaries();
+      calculateProfitLoss();
+    }
+  };
+
+  const openEditDialog = (expense: Expense) => {
+    setEditingExpense(expense);
+    setNewExpense({
+      description: expense.description,
+      amount: expense.amount.toString(),
+    });
+    setIsExpenseDialogOpen(true);
+  };
+
+  const closeExpenseDialog = () => {
+    setIsExpenseDialogOpen(false);
+    setEditingExpense(null);
+    setNewExpense({ description: "", amount: "" });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Expenses & Profit/Loss</h1>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Expense
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Expense</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Input
-                  id="description"
-                  placeholder="Enter expense description"
-                  value={newExpense.description}
-                  onChange={(e) =>
-                    setNewExpense({ ...newExpense, description: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount (PKR)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  placeholder="Enter amount"
-                  value={newExpense.amount}
-                  onChange={(e) =>
-                    setNewExpense({ ...newExpense, amount: e.target.value })
-                  }
-                />
-              </div>
-              <Button onClick={handleAddExpense} className="w-full">
-                Add Expense
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
 
       <div className="space-y-2">
@@ -316,46 +479,207 @@ const Expenses = () => {
         </Card>
       </div>
 
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Description</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Month</TableHead>
-              <TableHead>Year</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {expenses.length > 0 ? (
-              expenses.map((expense) => (
-                <TableRow key={expense.id}>
-                  <TableCell className="font-medium">{expense.description}</TableCell>
-                  <TableCell>PKR {Number(expense.amount).toLocaleString('en-PK')}</TableCell>
-                  <TableCell>{months[expense.month - 1]?.label}</TableCell>
-                  <TableCell>{expense.year}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDeleteExpense(expense.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+      <Tabs defaultValue="expenses" className="w-full">
+        <TabsList>
+          <TabsTrigger value="expenses">Expenses</TabsTrigger>
+          <TabsTrigger value="salaries">Employee Salaries</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="expenses" className="space-y-4">
+          <div className="flex justify-end">
+            <Dialog open={isExpenseDialogOpen} onOpenChange={closeExpenseDialog}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Expense
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingExpense ? 'Edit Expense' : 'Add New Expense'}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Input
+                      id="description"
+                      placeholder="Enter expense description"
+                      value={newExpense.description}
+                      onChange={(e) =>
+                        setNewExpense({ ...newExpense, description: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount (PKR)</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      placeholder="Enter amount"
+                      value={newExpense.amount}
+                      onChange={(e) =>
+                        setNewExpense({ ...newExpense, amount: e.target.value })
+                      }
+                    />
+                  </div>
+                  <Button 
+                    onClick={editingExpense ? handleEditExpense : handleAddExpense} 
+                    className="w-full"
+                  >
+                    {editingExpense ? 'Update Expense' : 'Add Expense'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Month</TableHead>
+                  <TableHead>Year</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center">
-                  No expenses found for {months[selectedMonth - 1]?.label} {selectedYear}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {expenses.length > 0 ? (
+                  expenses.map((expense) => (
+                    <TableRow key={expense.id}>
+                      <TableCell className="font-medium">{expense.description}</TableCell>
+                      <TableCell>PKR {Number(expense.amount).toLocaleString('en-PK')}</TableCell>
+                      <TableCell>{months[expense.month - 1]?.label}</TableCell>
+                      <TableCell>{expense.year}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditDialog(expense)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteExpense(expense.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center">
+                      No expenses found for {months[selectedMonth - 1]?.label} {selectedYear}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="salaries" className="space-y-4">
+          <div className="flex justify-end">
+            <Dialog open={isSalaryDialogOpen} onOpenChange={setIsSalaryDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Employee Salary
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Employee Salary</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="employee">Select Employee</Label>
+                    <Select
+                      value={newSalary.employee_id}
+                      onValueChange={(val) =>
+                        setNewSalary({ ...newSalary, employee_id: val })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose an employee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees.map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id}>
+                            {emp.name} (Default: PKR {emp.salary.toLocaleString('en-PK')})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="salary-amount">Amount (PKR)</Label>
+                    <Input
+                      id="salary-amount"
+                      type="number"
+                      placeholder="Enter salary amount"
+                      value={newSalary.amount}
+                      onChange={(e) =>
+                        setNewSalary({ ...newSalary, amount: e.target.value })
+                      }
+                    />
+                  </div>
+                  <Button onClick={handleAddSalary} className="w-full">
+                    Add Salary
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee Name</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Month</TableHead>
+                  <TableHead>Year</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {employeeSalaries.length > 0 ? (
+                  employeeSalaries.map((salary) => (
+                    <TableRow key={salary.id}>
+                      <TableCell className="font-medium">{salary.employee?.name || 'Unknown'}</TableCell>
+                      <TableCell>PKR {Number(salary.amount).toLocaleString('en-PK')}</TableCell>
+                      <TableCell>{months[salary.month - 1]?.label}</TableCell>
+                      <TableCell>{salary.year}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteSalary(salary.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center">
+                      No salaries recorded for {months[selectedMonth - 1]?.label} {selectedYear}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
