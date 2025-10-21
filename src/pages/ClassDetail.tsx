@@ -143,6 +143,7 @@ const ClassDetail = () => {
 
   const handleFeeStatusChange = async (studentId: string, newStatus: boolean) => {
     const existingRecord = getStudentFeeRecord(studentId);
+    const student = students.find((s) => s.id === studentId);
     
     if (existingRecord) {
       // Update existing record
@@ -150,6 +151,7 @@ const ClassDetail = () => {
         .from("fee_records")
         .update({
           is_paid: newStatus,
+          amount: newStatus ? (student?.total_fee ?? 0) : 0,
           payment_date: newStatus ? new Date().toISOString().split('T')[0] : null,
         })
         .eq("id", existingRecord.id);

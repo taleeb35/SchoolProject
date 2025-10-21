@@ -152,6 +152,7 @@ const Fees = () => {
         .from("fee_records")
         .update({
           is_paid: !existingRecord.is_paid,
+          amount: !existingRecord.is_paid ? student.total_fee : 0,
           payment_date: !existingRecord.is_paid
             ? new Date().toISOString()
             : null,
