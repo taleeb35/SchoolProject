@@ -23,8 +23,16 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Edit } from "lucide-react";
+import { Plus, Trash2, Edit, Search } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 interface Class {
@@ -38,10 +46,14 @@ interface Class {
 const Classes = () => {
   const navigate = useNavigate();
   const [classes, setClasses] = useState<Class[]>([]);
+  const [filteredClasses, setFilteredClasses] = useState<Class[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentClass, setCurrentClass] = useState<Class | null>(null);
-  const [formData, setFormData] = useState({ name: "", description: "", monthly_fee: "" }); // Added monthly_fee
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const [formData, setFormData] = useState({ name: "", description: "", monthly_fee: "" });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -62,8 +74,33 @@ const Classes = () => {
       });
     } else {
       setClasses(sortClasses(data || []));
+      setFilteredClasses(sortClasses(data || []));
     }
   };
+
+  // Filter classes based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredClasses(classes);
+      setCurrentPage(1);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = classes.filter(
+      (cls) =>
+        cls.name.toLowerCase().includes(query) ||
+        cls.description?.toLowerCase().includes(query)
+    );
+    setFilteredClasses(filtered);
+    setCurrentPage(1);
+  }, [searchQuery, classes]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredClasses.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentClasses = filteredClasses.slice(startIndex, endIndex);
 
   const resetFormData = () => {
     setFormData({ name: "", description: "", monthly_fee: "" });
@@ -217,6 +254,22 @@ const Classes = () => {
         </Dialog>
       </div>
 
+      {/* Search Filter */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by class name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Showing {currentClasses.length} of {filteredClasses.length} classes
+        </p>
+      </div>
+
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
@@ -227,8 +280,8 @@ const Classes = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {classes.length > 0 ? (
-              classes.map((classItem) => (
+            {currentClasses.length > 0 ? (
+              currentClasses.map((classItem) => (
                 <TableRow 
                   key={classItem.id} 
                   className="cursor-pointer hover:bg-muted/50"
@@ -303,13 +356,46 @@ const Classes = () => {
             ) : (
               <TableRow>
                 <TableCell colSpan={3} className="text-center">
-                  No classes found. Add a new class to get started.
+                  {searchQuery ? "No classes match your search." : "No classes found. Add a new class to get started."}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(page)}
+                    isActive={currentPage === page}
+                    className="cursor-pointer"
+                  >
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 };

@@ -28,8 +28,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Edit } from "lucide-react";
+import { Plus, Trash2, Edit, Search } from "lucide-react";
 
 interface Student {
   id: string;
@@ -52,10 +60,14 @@ interface Class {
 
 const Students = () => {
   const [students, setStudents] = useState<Student[]>([]);
+  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -109,8 +121,36 @@ const Students = () => {
       });
     } else {
       setStudents(data as Student[]);
+      setFilteredStudents(data as Student[]);
     }
   };
+
+  // Filter students based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredStudents(students);
+      setCurrentPage(1);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = students.filter(
+      (student) =>
+        student.first_name.toLowerCase().includes(query) ||
+        student.last_name?.toLowerCase().includes(query) ||
+        student.father_name?.toLowerCase().includes(query) ||
+        student.phone?.toLowerCase().includes(query) ||
+        student.classes.name.toLowerCase().includes(query)
+    );
+    setFilteredStudents(filtered);
+    setCurrentPage(1);
+  }, [searchQuery, students]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentStudents = filteredStudents.slice(startIndex, endIndex);
 
   const resetFormData = () => {
     setFormData({
@@ -326,6 +366,22 @@ const Students = () => {
         </Dialog>
       </div>
 
+      {/* Search Filter */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, phone, or class..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Showing {currentStudents.length} of {filteredStudents.length} students
+        </p>
+      </div>
+
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
@@ -342,8 +398,8 @@ const Students = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {students.length > 0 ? (
-              students.map((student) => (
+            {currentStudents.length > 0 ? (
+              currentStudents.map((student) => (
                 <TableRow key={student.id}>
                   <TableCell className="font-medium">{student.first_name}</TableCell>
                   <TableCell>{student.last_name}</TableCell>
@@ -375,13 +431,46 @@ const Students = () => {
             ) : (
               <TableRow>
                 <TableCell colSpan={9} className="text-center">
-                  No students found. Add a new student to get started.
+                  {searchQuery ? "No students match your search." : "No students found. Add a new student to get started."}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(page)}
+                    isActive={currentPage === page}
+                    className="cursor-pointer"
+                  >
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

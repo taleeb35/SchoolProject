@@ -28,8 +28,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Edit } from "lucide-react";
+import { Plus, Trash2, Edit, Search } from "lucide-react";
 
 interface Employee {
   id: string;
@@ -49,10 +57,14 @@ interface Class {
 
 const Employees = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -107,8 +119,35 @@ const Employees = () => {
       });
     } else {
       setEmployees(data as Employee[]);
+      setFilteredEmployees(data as Employee[]);
     }
   };
+
+  // Filter employees based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredEmployees(employees);
+      setCurrentPage(1);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = employees.filter(
+      (employee) =>
+        employee.name.toLowerCase().includes(query) ||
+        employee.designation?.toLowerCase().includes(query) ||
+        employee.phone?.toLowerCase().includes(query) ||
+        employee.employee_classes?.[0]?.classes?.name.toLowerCase().includes(query)
+    );
+    setFilteredEmployees(filtered);
+    setCurrentPage(1);
+  }, [searchQuery, employees]);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentEmployees = filteredEmployees.slice(startIndex, endIndex);
 
   const resetFormData = () => {
     setFormData({
@@ -362,6 +401,22 @@ const Employees = () => {
         </Dialog>
       </div>
 
+      {/* Search Filter */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, designation, or class..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Showing {currentEmployees.length} of {filteredEmployees.length} employees
+        </p>
+      </div>
+
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
@@ -376,8 +431,8 @@ const Employees = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {employees.length > 0 ? (
-              employees.map((employee) => (
+            {currentEmployees.length > 0 ? (
+              currentEmployees.map((employee) => (
                 <TableRow key={employee.id}>
                   <TableCell className="font-medium">{employee.name}</TableCell>
                   <TableCell>{employee.designation || "-"}</TableCell>
@@ -409,13 +464,46 @@ const Employees = () => {
             ) : (
               <TableRow>
                 <TableCell colSpan={7} className="text-center">
-                  No employees found. Add a new employee to get started.
+                  {searchQuery ? "No employees match your search." : "No employees found. Add a new employee to get started."}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <PaginationItem key={page}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(page)}
+                    isActive={currentPage === page}
+                    className="cursor-pointer"
+                  >
+                    {page}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
