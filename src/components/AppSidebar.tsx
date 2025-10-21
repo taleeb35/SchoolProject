@@ -21,7 +21,7 @@ const menuItems = [
   { title: "Students", url: "/students", icon: Users },
   { title: "Employees", url: "/employees", icon: Briefcase },
   { title: "Fee Management", url: "/fees", icon: DollarSign },
-  { title: "Expenses", url: "/expenses", icon: DollarSign },
+  { title: "Expenses & Profit/Loss", url: "/expenses", icon: DollarSign },
 ];
 
 export function AppSidebar() {

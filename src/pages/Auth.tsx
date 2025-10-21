@@ -11,8 +11,8 @@ import { GraduationCap } from "lucide-react";
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -21,37 +21,45 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully logged in.",
-        });
-        navigate("/");
-      } else {
-        const redirectUrl = `${window.location.origin}/`;
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: redirectUrl,
-          },
-        });
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
+      });
+      navigate("/");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        if (error) throw error;
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
 
-        toast({
-          title: "Account created!",
-          description: "You have successfully signed up.",
-        });
-        navigate("/");
-      }
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth`,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Password reset email sent!",
+        description: "Please check your email for the reset link.",
+      });
+      setShowForgotPassword(false);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -74,11 +82,11 @@ const Auth = () => {
           </div>
           <CardTitle className="text-3xl">School Management</CardTitle>
           <CardDescription>
-            {isLogin ? "Sign in to your admin account" : "Create a new admin account"}
+            {showForgotPassword ? "Reset your password" : "Sign in to your admin account"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={showForgotPassword ? handleForgotPassword : handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -90,30 +98,30 @@ const Auth = () => {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+            {!showForgotPassword && (
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
+              {loading ? "Loading..." : showForgotPassword ? "Send Reset Link" : "Sign In"}
             </Button>
           </form>
           <div className="mt-4 text-center">
             <Button
               variant="link"
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => setShowForgotPassword(!showForgotPassword)}
               className="text-sm"
             >
-              {isLogin
-                ? "Don't have an account? Sign up"
-                : "Already have an account? Sign in"}
+              {showForgotPassword ? "Back to Sign In" : "Forgot Password?"}
             </Button>
           </div>
         </CardContent>

@@ -21,6 +21,7 @@ export type Database = {
           id: string
           monthly_fee: number
           name: string
+          whatsapp_group_link: string | null
         }
         Insert: {
           created_at?: string
@@ -28,6 +29,7 @@ export type Database = {
           id?: string
           monthly_fee?: number
           name: string
+          whatsapp_group_link?: string | null
         }
         Update: {
           created_at?: string
@@ -35,6 +37,7 @@ export type Database = {
           id?: string
           monthly_fee?: number
           name?: string
+          whatsapp_group_link?: string | null
         }
         Relationships: []
       }
