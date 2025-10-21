@@ -43,6 +43,7 @@ export type Database = {
       }
       employee_attendance: {
         Row: {
+          attendance_data: Json | null
           created_at: string
           employee_id: string
           id: string
@@ -52,6 +53,7 @@ export type Database = {
           year: number
         }
         Insert: {
+          attendance_data?: Json | null
           created_at?: string
           employee_id: string
           id?: string
@@ -61,6 +63,7 @@ export type Database = {
           year: number
         }
         Update: {
+          attendance_data?: Json | null
           created_at?: string
           employee_id?: string
           id?: string

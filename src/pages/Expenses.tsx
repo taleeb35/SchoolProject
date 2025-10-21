@@ -42,6 +42,8 @@ interface Employee {
   id: string;
   name: string;
   salary: number;
+  joining_date: string;
+  designation: string | null;
 }
 
 interface EmployeeSalary {
@@ -61,6 +63,7 @@ interface EmployeeAttendance {
   month: number;
   year: number;
   leaves_taken: number;
+  attendance_data: Record<string, string>; // {day: status} where status is P/A/H/R
 }
 
 const Expenses = () => {
@@ -87,6 +90,7 @@ const Expenses = () => {
     employee_id: "",
     leaves_taken: "",
   });
+  const [attendanceData, setAttendanceData] = useState<Record<string, Record<string, string>>>({});
   const [profitLoss, setProfitLoss] = useState({
     totalFees: 0,
     totalSalaries: 0,
@@ -140,7 +144,7 @@ const Expenses = () => {
   const loadEmployees = async () => {
     const { data, error } = await supabase
       .from("employees")
-      .select("id, name, salary")
+      .select("id, name, salary, joining_date, designation")
       .order("name");
 
     if (error) {
@@ -198,7 +202,12 @@ const Expenses = () => {
         description: "Failed to load attendance",
       });
     } else {
-      setAttendance(data || []);
+      // Cast Json type to Record<string, string> for attendance_data
+      const typedData = (data || []).map(item => ({
+        ...item,
+        attendance_data: (item.attendance_data as Record<string, string>) || {}
+      }));
+      setAttendance(typedData);
     }
   };
 
@@ -353,7 +362,13 @@ const Expenses = () => {
 
     const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
     const employeeAttendance = attendance.find(a => a.employee_id === employeeId);
-    const leaves = employeeAttendance?.leaves_taken || 0;
+    
+    // Count absences from attendance_data
+    let leaves = 0;
+    if (employeeAttendance?.attendance_data) {
+      leaves = Object.values(employeeAttendance.attendance_data).filter(status => status === 'A').length;
+    }
+    
     const dailySalary = employee.salary / daysInMonth;
     const actualSalary = employee.salary - (dailySalary * leaves);
 
@@ -476,32 +491,29 @@ const Expenses = () => {
     }
   };
 
-  const handleAddAttendance = async () => {
-    if (!newAttendance.employee_id) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please select an employee",
-      });
-      return;
-    }
-
-    const leaves = parseInt(newAttendance.leaves_taken) || 0;
+  const handleSaveAttendance = async (employeeId: string) => {
+    const empAttendanceData = attendanceData[employeeId] || {};
+    
+    // Count absences for leaves_taken field
+    const leaves = Object.values(empAttendanceData).filter(status => status === 'A').length;
 
     // Check if attendance already exists
     const { data: existing } = await supabase
       .from("employee_attendance")
       .select("id")
-      .eq("employee_id", newAttendance.employee_id)
+      .eq("employee_id", employeeId)
       .eq("month", selectedMonth)
       .eq("year", selectedYear)
       .maybeSingle();
 
     if (existing) {
-      // Update existing
+      // Update existing record
       const { error } = await supabase
         .from("employee_attendance")
-        .update({ leaves_taken: leaves })
+        .update({ 
+          leaves_taken: leaves,
+          attendance_data: empAttendanceData 
+        })
         .eq("id", existing.id);
 
       if (error) {
@@ -513,12 +525,13 @@ const Expenses = () => {
         return;
       }
     } else {
-      // Insert new
+      // Insert new record
       const { error } = await supabase.from("employee_attendance").insert({
-        employee_id: newAttendance.employee_id,
+        employee_id: employeeId,
         month: selectedMonth,
         year: selectedYear,
         leaves_taken: leaves,
+        attendance_data: empAttendanceData,
       });
 
       if (error) {
@@ -533,12 +546,31 @@ const Expenses = () => {
 
     toast({
       title: "Success",
-      description: "Attendance updated successfully",
+      description: "Attendance saved successfully",
     });
-    setNewAttendance({ employee_id: "", leaves_taken: "" });
-    setIsAttendanceDialogOpen(false);
     loadAttendance();
   };
+
+  const handleAttendanceChange = (employeeId: string, day: number, status: string) => {
+    setAttendanceData(prev => ({
+      ...prev,
+      [employeeId]: {
+        ...(prev[employeeId] || {}),
+        [day]: status
+      }
+    }));
+  };
+
+  useEffect(() => {
+    // Load attendance data into state
+    const data: Record<string, Record<string, string>> = {};
+    attendance.forEach(att => {
+      if (att.attendance_data) {
+        data[att.employee_id] = att.attendance_data;
+      }
+    });
+    setAttendanceData(data);
+  }, [attendance]);
 
   const openEditDialog = (expense: Expense) => {
     setEditingExpense(expense);
@@ -908,81 +940,100 @@ const Expenses = () => {
         </TabsContent>
 
         <TabsContent value="attendance" className="space-y-4">
-          <div className="flex justify-end">
-            <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add/Update Attendance
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Manage Employee Attendance</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="attendance-employee">Select Employee</Label>
-                    <Select
-                      value={newAttendance.employee_id}
-                      onValueChange={(val) => {
-                        const existing = attendance.find(a => a.employee_id === val);
-                        setNewAttendance({ 
-                          employee_id: val, 
-                          leaves_taken: existing ? existing.leaves_taken.toString() : "0" 
-                        });
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose an employee" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employees.map((emp) => (
-                          <SelectItem key={emp.id} value={emp.id}>
-                            {emp.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="leaves">Number of Leaves</Label>
-                    <Input
-                      id="leaves"
-                      type="number"
-                      min="0"
-                      placeholder="Enter number of leaves"
-                      value={newAttendance.leaves_taken}
-                      onChange={(e) =>
-                        setNewAttendance({ ...newAttendance, leaves_taken: e.target.value })
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Days in {months[selectedMonth - 1]?.label}: {getDaysInMonth(selectedMonth, selectedYear)}
-                    </p>
-                  </div>
-                  <Button onClick={handleAddAttendance} className="w-full">
-                    Save Attendance
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+          <div className="text-sm text-muted-foreground mb-4">
+            Mark daily attendance for {months[selectedMonth - 1]?.label} {selectedYear}. 
+            P = Present, A = Absent, H = Holiday, R = Rest/Off. Only Absent (A) days will be deducted from salary.
           </div>
 
-          <div className="border rounded-lg">
+          <div className="border rounded-lg overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee Name</TableHead>
-                  <TableHead>Default Salary</TableHead>
-                  <TableHead>Leaves Taken</TableHead>
-                  <TableHead>Days in Month</TableHead>
-                  <TableHead>Actual Salary</TableHead>
+                  <TableHead className="sticky left-0 bg-background z-10 min-w-[150px]">Name</TableHead>
+                  <TableHead className="min-w-[100px]">Salary</TableHead>
+                  <TableHead className="min-w-[120px]">Date of Joining</TableHead>
+                  {Array.from({ length: getDaysInMonth(selectedMonth, selectedYear) }, (_, i) => (
+                    <TableHead key={i + 1} className="text-center min-w-[60px]">{i + 1}</TableHead>
+                  ))}
+                  <TableHead className="min-w-[80px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {employees.length > 0 ? (
                   employees.map((emp) => {
+                    const empAttendance = attendanceData[emp.id] || {};
+                    return (
+                      <TableRow key={emp.id}>
+                        <TableCell className="sticky left-0 bg-background z-10 font-medium">{emp.name}</TableCell>
+                        <TableCell>{emp.salary.toLocaleString('en-PK')}</TableCell>
+                        <TableCell>
+                          {new Date(employees.find(e => e.id === emp.id)?.['joining_date' as keyof Employee] as string || '').toLocaleDateString('en-PK')}
+                        </TableCell>
+                        {Array.from({ length: getDaysInMonth(selectedMonth, selectedYear) }, (_, i) => {
+                          const day = i + 1;
+                          const status = empAttendance[day] || 'P';
+                          return (
+                            <TableCell key={day} className="p-1">
+                              <Select
+                                value={status}
+                                onValueChange={(val) => handleAttendanceChange(emp.id, day, val)}
+                              >
+                                <SelectTrigger className={`h-8 text-xs ${
+                                  status === 'P' ? 'bg-green-100 dark:bg-green-900' :
+                                  status === 'A' ? 'bg-red-100 dark:bg-red-900' :
+                                  status === 'H' ? 'bg-blue-100 dark:bg-blue-900' :
+                                  'bg-yellow-100 dark:bg-yellow-900'
+                                }`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="P">P</SelectItem>
+                                  <SelectItem value="A">A</SelectItem>
+                                  <SelectItem value="H">H</SelectItem>
+                                  <SelectItem value="R">R</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            onClick={() => handleSaveAttendance(emp.id)}
+                            variant="outline"
+                          >
+                            Save
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={getDaysInMonth(selectedMonth, selectedYear) + 4} className="text-center">
+                      No employees found
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="font-semibold mb-3">Salary Summary</h3>
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee Name</TableHead>
+                    <TableHead>Default Salary</TableHead>
+                    <TableHead>Absences</TableHead>
+                    <TableHead>Days in Month</TableHead>
+                    <TableHead>Actual Salary</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {employees.map((emp) => {
                     const calc = calculateActualSalary(emp.id);
                     return (
                       <TableRow key={emp.id}>
@@ -995,16 +1046,10 @@ const Expenses = () => {
                         </TableCell>
                       </TableRow>
                     );
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center">
-                      No employees found
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </TabsContent>
       </Tabs>
