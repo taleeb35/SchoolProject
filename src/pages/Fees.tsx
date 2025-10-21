@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -17,6 +18,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -48,6 +57,9 @@ const Fees = () => {
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear] = useState(new Date().getFullYear());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const { toast } = useToast();
 
   const months = [
@@ -204,6 +216,24 @@ const Fees = () => {
     return record?.is_paid || false;
   };
 
+  // Filter students based on search query
+  const filteredStudents = students.filter((student) => {
+    const fullName = `${student.first_name} ${student.last_name || ""}`.toLowerCase();
+    const query = searchQuery.toLowerCase();
+    return fullName.includes(query);
+  });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredStudents.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search query, page size, or selected class changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, pageSize, selectedClass]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -213,7 +243,7 @@ const Fees = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="space-y-2">
           <Label>Select Class</Label>
           <Select value={selectedClass} onValueChange={setSelectedClass}>
@@ -245,53 +275,122 @@ const Fees = () => {
             </SelectContent>
           </Select>
         </div>
+
+        <div className="space-y-2">
+          <Label>Search Students</Label>
+          <Input
+            placeholder="Search by name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Page Size</Label>
+          <Select value={pageSize.toString()} onValueChange={(val) => setPageSize(parseInt(val))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="15">15</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="30">30</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {selectedClass && students.length > 0 && (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Student Name</TableHead>
-                <TableHead>Fee Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {students.map((student) => {
-                const isPaid = getStudentFeeStatus(student.id);
-                return (
-                  <TableRow key={student.id}>
-                    <TableCell>{student.first_name} {student.last_name}</TableCell>
-                    <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
-                    <TableCell>
-                      {isPaid ? (
-                        <Badge className="bg-success">Paid</Badge>
-                      ) : (
-                        <Badge variant="secondary">Unpaid</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`fee-${student.id}`}
-                          checked={isPaid}
-                          onCheckedChange={() => toggleFeeStatus(student)}
-                        />
-                        <label
-                          htmlFor={`fee-${student.id}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          Mark as {isPaid ? "Unpaid" : "Paid"}
-                        </label>
-                      </div>
+        <div className="space-y-4">
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Student Name</TableHead>
+                  <TableHead>Fee Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedStudents.length > 0 ? (
+                  paginatedStudents.map((student) => {
+                    const isPaid = getStudentFeeStatus(student.id);
+                    return (
+                      <TableRow key={student.id}>
+                        <TableCell>{student.first_name} {student.last_name}</TableCell>
+                        <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
+                        <TableCell>
+                          {isPaid ? (
+                            <Badge className="bg-success">Paid</Badge>
+                          ) : (
+                            <Badge variant="secondary">Unpaid</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`fee-${student.id}`}
+                              checked={isPaid}
+                              onCheckedChange={() => toggleFeeStatus(student)}
+                            />
+                            <label
+                              htmlFor={`fee-${student.id}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              Mark as {isPaid ? "Unpaid" : "Paid"}
+                            </label>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center">
+                      No students found matching your search
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Showing {startIndex + 1} to {Math.min(endIndex, filteredStudents.length)} of {filteredStudents.length} students
+              </p>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <PaginationItem key={page}>
+                      <PaginationLink
+                        onClick={() => setCurrentPage(page)}
+                        isActive={currentPage === page}
+                        className="cursor-pointer"
+                      >
+                        {page}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext 
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </div>
       )}
 

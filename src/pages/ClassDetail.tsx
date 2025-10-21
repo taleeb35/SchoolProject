@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -55,6 +64,9 @@ const ClassDetail = () => {
   const [feeRecords, setFeeRecords] = useState<FeeRecord[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear] = useState(new Date().getFullYear());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const { toast } = useToast();
 
   const months = [
@@ -204,6 +216,26 @@ const ClassDetail = () => {
   const paidCount = students.filter((s) => getStudentFeeStatus(s.id)).length;
   const unpaidCount = students.length - paidCount;
 
+  // Filter students based on search query
+  const filteredStudents = students.filter((student) => {
+    const fullName = `${student.first_name} ${student.last_name || ""}`.toLowerCase();
+    const fatherName = (student.father_name || "").toLowerCase();
+    const phone = (student.phone || "").toLowerCase();
+    const query = searchQuery.toLowerCase();
+    return fullName.includes(query) || fatherName.includes(query) || phone.includes(query);
+  });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredStudents.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search query or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, pageSize]);
+
   if (!classData) {
     return <div>Loading...</div>;
   }
@@ -222,20 +254,44 @@ const ClassDetail = () => {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label>Filter by Month</Label>
-        <Select value={selectedMonth.toString()} onValueChange={(val) => setSelectedMonth(parseInt(val))}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Choose a month" />
-          </SelectTrigger>
-          <SelectContent>
-            {months.map((month) => (
-              <SelectItem key={month.value} value={month.value.toString()}>
-                {month.label} {selectedYear}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="space-y-2 flex-1">
+          <Label>Search Students</Label>
+          <Input
+            placeholder="Search by name, father name, or contact..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Filter by Month</Label>
+          <Select value={selectedMonth.toString()} onValueChange={(val) => setSelectedMonth(parseInt(val))}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Choose a month" />
+            </SelectTrigger>
+            <SelectContent>
+              {months.map((month) => (
+                <SelectItem key={month.value} value={month.value.toString()}>
+                  {month.label} {selectedYear}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Page Size</Label>
+          <Select value={pageSize.toString()} onValueChange={(val) => setPageSize(parseInt(val))}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="15">15</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="30">30</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -265,72 +321,107 @@ const ClassDetail = () => {
         </Card>
       </div>
 
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Student Name</TableHead>
-              <TableHead>Father Name</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Total Fee</TableHead>
-              <TableHead>Fee Status ({months[selectedMonth - 1]?.label})</TableHead>
-              <TableHead>Joining Date</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {students.length > 0 ? (
-              students.map((student) => {
-                const isPaid = getStudentFeeStatus(student.id);
-                return (
-                  <TableRow key={student.id}>
-                    <TableCell className="font-medium">
-                      {student.first_name} {student.last_name || ""}
-                    </TableCell>
-                    <TableCell>{student.father_name || "-"}</TableCell>
-                    <TableCell>{student.phone || "-"}</TableCell>
-                    <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
-                    <TableCell>
-                      {isPaid ? (
-                        <Badge className="bg-success">Paid</Badge>
-                      ) : (
-                        <Badge variant="secondary">Unpaid</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>{new Date(student.joining_date).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {!isPaid && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleFeeStatusChange(student.id, true)}
-                          >
-                            Mark Paid
-                          </Button>
-                        )}
-                        {isPaid && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleFeeStatusChange(student.id, false)}
-                          >
-                            Mark Unpaid
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            ) : (
+      <div className="space-y-4">
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={7} className="text-center">
-                  No students found in this class
-                </TableCell>
+                <TableHead>Student Name</TableHead>
+                <TableHead>Father Name</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Total Fee</TableHead>
+                <TableHead>Fee Status ({months[selectedMonth - 1]?.label})</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {paginatedStudents.length > 0 ? (
+                paginatedStudents.map((student) => {
+                  const isPaid = getStudentFeeStatus(student.id);
+                  return (
+                    <TableRow key={student.id}>
+                      <TableCell className="font-medium">
+                        {student.first_name} {student.last_name || ""}
+                      </TableCell>
+                      <TableCell>{student.father_name || "-"}</TableCell>
+                      <TableCell>{student.phone || "-"}</TableCell>
+                      <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
+                      <TableCell>
+                        {isPaid ? (
+                          <Badge className="bg-success">Paid</Badge>
+                        ) : (
+                          <Badge variant="secondary">Unpaid</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          {!isPaid && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleFeeStatusChange(student.id, true)}
+                            >
+                              Mark Paid
+                            </Button>
+                          )}
+                          {isPaid && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleFeeStatusChange(student.id, false)}
+                            >
+                              Mark Unpaid
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center">
+                    {searchQuery ? "No students found matching your search" : "No students found in this class"}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredStudents.length)} of {filteredStudents.length} students
+            </p>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <PaginationItem key={page}>
+                    <PaginationLink
+                      onClick={() => setCurrentPage(page)}
+                      isActive={currentPage === page}
+                      className="cursor-pointer"
+                    >
+                      {page}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
       </div>
     </div>
   );
