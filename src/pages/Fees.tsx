@@ -187,64 +187,38 @@ const Fees = () => {
     const newIsPaid = existingRecord ? !existingRecord.is_paid : true;
     const paymentDate = new Date().toISOString().split('T')[0];
 
-    if (existingRecord) {
-      // Update existing record
-      const { error } = await supabase
-        .from("fee_records")
-        .update({
-          is_paid: newIsPaid,
-          amount: newIsPaid ? student.total_fee : 0,
-          payment_date: newIsPaid ? paymentDate : null,
-        })
-        .eq("id", existingRecord.id);
-
-      if (error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.message,
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "Fee status updated",
-        });
-        
-        // Send notification if marking as paid
-        if (newIsPaid) {
-          await sendNotification(student, student.total_fee, paymentDate);
-        }
-        
-        loadStudents(selectedClass);
-      }
-    } else {
-      // Create new record
-      const { error } = await supabase.from("fee_records").insert({
+    // Use upsert to avoid duplicate key errors
+    const { error } = await supabase
+      .from("fee_records")
+      .upsert({
         student_id: student.id,
         month: selectedMonth,
         year: selectedYear,
-        is_paid: true,
-        amount: student.total_fee,
-        payment_date: paymentDate,
+        is_paid: newIsPaid,
+        amount: newIsPaid ? student.total_fee : 0,
+        payment_date: newIsPaid ? paymentDate : null,
+      }, {
+        onConflict: 'student_id,month,year'
       });
 
-      if (error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.message,
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "Fee marked as paid",
-        });
-        
-        // Send notification
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: `Fee marked as ${newIsPaid ? "Paid" : "Unpaid"}`,
+      });
+      
+      // Send notification if marking as paid
+      if (newIsPaid) {
         await sendNotification(student, student.total_fee, paymentDate);
-        
-        loadStudents(selectedClass);
       }
+      
+      loadStudents(selectedClass);
     }
   };
 

@@ -180,75 +180,43 @@ const ClassDetail = () => {
   };
 
   const handleFeeStatusChange = async (studentId: string, newStatus: boolean) => {
-    const existingRecord = getStudentFeeRecord(studentId);
     const student = students.find((s) => s.id === studentId);
+    if (!student) return;
+    
     const paymentDate = new Date().toISOString().split('T')[0];
     
-    if (existingRecord) {
-      // Update existing record
-      const { error } = await supabase
-        .from("fee_records")
-        .update({
-          is_paid: newStatus,
-          amount: newStatus ? (student?.total_fee ?? 0) : 0,
-          payment_date: newStatus ? paymentDate : null,
-        })
-        .eq("id", existingRecord.id);
+    // Use upsert to avoid duplicate key errors
+    const { error } = await supabase
+      .from("fee_records")
+      .upsert({
+        student_id: studentId,
+        month: selectedMonth,
+        year: selectedYear,
+        is_paid: newStatus,
+        amount: newStatus ? student.total_fee : 0,
+        payment_date: newStatus ? paymentDate : null,
+      }, {
+        onConflict: 'student_id,month,year'
+      });
 
-      if (error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to update fee status",
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: `Fee status updated to ${newStatus ? "Paid" : "Unpaid"}`,
-        });
-        
-        // Send notification if marking as paid
-        if (newStatus && student) {
-          await sendNotification(student, student.total_fee, paymentDate);
-        }
-        
-        loadStudents();
-      }
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update fee status",
+      });
     } else {
-      // Create new record
-      const student = students.find((s) => s.id === studentId);
-      if (!student) return;
-
-      const { error } = await supabase
-        .from("fee_records")
-        .insert({
-          student_id: studentId,
-          month: selectedMonth,
-          year: selectedYear,
-          amount: student.total_fee,
-          is_paid: newStatus,
-          payment_date: newStatus ? paymentDate : null,
-        });
-
-      if (error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to create fee record",
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: `Fee marked as ${newStatus ? "Paid" : "Unpaid"}`,
-        });
-        
-        // Send notification if marking as paid
-        if (newStatus) {
-          await sendNotification(student, student.total_fee, paymentDate);
-        }
-        
-        loadStudents();
+      toast({
+        title: "Success",
+        description: `Fee marked as ${newStatus ? "Paid" : "Unpaid"}`,
+      });
+      
+      // Send notification if marking as paid
+      if (newStatus) {
+        await sendNotification(student, student.total_fee, paymentDate);
       }
+      
+      loadStudents();
     }
   };
 
