@@ -1,5 +1,5 @@
 // src/components/AppSidebar.tsx
-import { Home, Users, GraduationCap, DollarSign, LogOut, Briefcase } from "lucide-react";
+import { Home, Users, GraduationCap, DollarSign, LogOut, Briefcase, UserCircle } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -22,6 +22,7 @@ const menuItems = [
   { title: "Employees", url: "/employees", icon: Briefcase },
   { title: "Fee Management", url: "/fees", icon: DollarSign },
   { title: "Expenses & Profit/Loss", url: "/expenses", icon: DollarSign },
+  { title: "Profile", url: "/profile", icon: UserCircle },
 ];
 
 export function AppSidebar() {

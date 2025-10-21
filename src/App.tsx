@@ -14,6 +14,7 @@ import Fees from "./pages/Fees";
 import Employees from "./pages/Employees";
 import Expenses from "./pages/Expenses";
 import Auth from "./pages/Auth";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -83,6 +84,14 @@ const App = () => (
               element={
                 <Layout>
                   <Expenses />
+                </Layout>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <Layout>
+                  <Profile />
                 </Layout>
               }
             />

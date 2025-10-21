@@ -31,7 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
-import { WhatsAppHomework } from "@/components/WhatsAppHomework";
+
 
 interface Student {
   id: string;
@@ -47,7 +47,6 @@ interface Class {
   id: string;
   name: string;
   monthly_fee: number;
-  whatsapp_group_link: string | null;
 }
 
 interface FeeRecord {
@@ -323,11 +322,6 @@ const ClassDetail = () => {
         </Card>
       </div>
 
-      <WhatsAppHomework 
-        classId={classId!} 
-        className={classData.name}
-        whatsappLink={classData.whatsapp_group_link}
-      />
 
       <div className="space-y-4">
         <div className="border rounded-lg">
