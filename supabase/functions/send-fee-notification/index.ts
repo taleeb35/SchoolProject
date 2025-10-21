@@ -76,35 +76,18 @@ const handler = async (req: Request): Promise<Response> => {
     // Format phone number (ensure it starts with +)
     const formattedPhone = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
 
-    // Create receipt message for WhatsApp
-    const receiptMessage = `
-*FEE PAYMENT RECEIPT*
+    // Create SMS message
+    const smsMessage = `Fee Payment Receipt - Student: ${studentName}, Amount: Rs. ${amount} for ${month} ${year}. Payment Date: ${paymentDate}. Thank you!`;
 
-Student: ${studentName}
-Month: ${month} ${year}
-Amount Paid: Rs. ${amount}
-Payment Date: ${paymentDate}
+    // Send SMS notification only
+    const smsResult = await sendSMS(formattedPhone, smsMessage);
 
-Thank you for your payment!
-    `.trim();
-
-    // Create simple SMS message
-    const smsMessage = `Fee payment received for ${studentName}. Amount: Rs. ${amount} for ${month} ${year}. Thank you!`;
-
-    // Send both notifications
-    const [whatsappResult, smsResult] = await Promise.allSettled([
-      sendWhatsApp(formattedPhone, receiptMessage),
-      sendSMS(formattedPhone, smsMessage),
-    ]);
-
-    console.log("WhatsApp result:", whatsappResult);
     console.log("SMS result:", smsResult);
 
     return new Response(
       JSON.stringify({
         success: true,
-        whatsapp: whatsappResult.status === "fulfilled" ? whatsappResult.value : null,
-        sms: smsResult.status === "fulfilled" ? smsResult.value : null,
+        sms: smsResult,
       }),
       {
         status: 200,
