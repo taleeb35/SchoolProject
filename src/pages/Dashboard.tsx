@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, GraduationCap, DollarSign, TrendingUp } from "lucide-react";
+import { Users, GraduationCap, Briefcase } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
     totalClasses: 0,
     totalStudents: 0,
-    paidFees: 0,
-    unpaidFees: 0,
+    totalEmployees: 0,
   });
 
   useEffect(() => {
@@ -16,20 +16,16 @@ const Dashboard = () => {
   }, []);
 
   const loadStats = async () => {
-    const [classesRes, studentsRes, feesRes] = await Promise.all([
+    const [classesRes, studentsRes, employeesRes] = await Promise.all([
       supabase.from("classes").select("id", { count: "exact" }),
       supabase.from("students").select("id", { count: "exact" }),
-      supabase.from("fee_records").select("is_paid", { count: "exact" }),
+      supabase.from("employees").select("id", { count: "exact" }),
     ]);
-
-    const paidCount = feesRes.data?.filter((f) => f.is_paid).length || 0;
-    const unpaidCount = (feesRes.data?.length || 0) - paidCount;
 
     setStats({
       totalClasses: classesRes.count || 0,
       totalStudents: studentsRes.count || 0,
-      paidFees: paidCount,
-      unpaidFees: unpaidCount,
+      totalEmployees: employeesRes.count || 0,
     });
   };
 
@@ -40,46 +36,42 @@ const Dashboard = () => {
         <p className="text-muted-foreground">Welcome to School Management System</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Classes</CardTitle>
-            <GraduationCap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalClasses}</div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Link to="/classes">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Classes</CardTitle>
+              <GraduationCap className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalClasses}</div>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalStudents}</div>
-          </CardContent>
-        </Card>
+        <Link to="/students">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalStudents}</div>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Paid Fees</CardTitle>
-            <DollarSign className="h-4 w-4 text-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">{stats.paidFees}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unpaid Fees</CardTitle>
-            <TrendingUp className="h-4 w-4 text-warning" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-warning">{stats.unpaidFees}</div>
-          </CardContent>
-        </Card>
+        <Link to="/employees">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
+              <Briefcase className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalEmployees}</div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </div>
   );

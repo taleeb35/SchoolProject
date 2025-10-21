@@ -58,12 +58,20 @@ const Classes = () => {
         description: error.message,
       });
     } else {
-      setClasses(data || []);
+      // Sort classes: PG first, then Nursery, then alphabetically
+      const sortedData = (data || []).sort((a, b) => {
+        if (a.name.toLowerCase().includes('pg')) return -1;
+        if (b.name.toLowerCase().includes('pg')) return 1;
+        if (a.name.toLowerCase().includes('nursery')) return -1;
+        if (b.name.toLowerCase().includes('nursery')) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      setClasses(sortedData);
     }
   };
 
   const resetFormData = () => {
-    setFormData({ name: "", description: "", monthly_fee: "" }); // Reset monthly_fee
+    setFormData({ name: "", description: "", monthly_fee: "" });
     setCurrentClass(null);
   };
 
@@ -219,7 +227,6 @@ const Classes = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Class Name</TableHead>
-              <TableHead>Description</TableHead>
               <TableHead>Monthly Fee</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -229,8 +236,7 @@ const Classes = () => {
               classes.map((classItem) => (
                 <TableRow key={classItem.id}>
                   <TableCell className="font-medium">{classItem.name}</TableCell>
-                  <TableCell>{classItem.description || "No description"}</TableCell>
-                  <TableCell>${classItem.monthly_fee?.toFixed(2) || '0.00'}</TableCell>
+                  <TableCell>PKR {classItem.monthly_fee?.toLocaleString('en-PK') || '0'}</TableCell>
                   <TableCell className="text-right">
                     <Dialog open={isEditDialogOpen && currentClass?.id === classItem.id} onOpenChange={(open) => { if (!open) { setIsEditDialogOpen(false); resetFormData(); } else { openEditDialog(classItem); } }}>
                       <DialogTrigger asChild>
@@ -297,7 +303,7 @@ const Classes = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="text-center">
+                <TableCell colSpan={3} className="text-center">
                   No classes found. Add a new class to get started.
                 </TableCell>
               </TableRow>

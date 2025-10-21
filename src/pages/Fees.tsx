@@ -46,9 +46,24 @@ const Fees = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [feeRecords, setFeeRecords] = useState<FeeRecord[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>("");
-  const [currentMonth] = useState(new Date().getMonth() + 1);
-  const [currentYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear] = useState(new Date().getFullYear());
   const { toast } = useToast();
+
+  const months = [
+    { value: 1, label: "January" },
+    { value: 2, label: "February" },
+    { value: 3, label: "March" },
+    { value: 4, label: "April" },
+    { value: 5, label: "May" },
+    { value: 6, label: "June" },
+    { value: 7, label: "July" },
+    { value: 8, label: "August" },
+    { value: 9, label: "September" },
+    { value: 10, label: "October" },
+    { value: 11, label: "November" },
+    { value: 12, label: "December" },
+  ];
 
   useEffect(() => {
     loadClasses();
@@ -58,7 +73,7 @@ const Fees = () => {
     if (selectedClass) {
       loadStudents(selectedClass);
     }
-  }, [selectedClass]);
+  }, [selectedClass, selectedMonth]);
 
   const loadClasses = async () => {
     const { data, error } = await supabase
@@ -89,15 +104,15 @@ const Fees = () => {
 
     setStudents(studentsData || []);
 
-    // Load fee records for current month
+    // Load fee records for selected month
     const studentIds = studentsData?.map((s) => s.id) || [];
     if (studentIds.length > 0) {
       const { data: feeData } = await supabase
         .from("fee_records")
         .select("*")
         .in("student_id", studentIds)
-        .eq("month", currentMonth)
-        .eq("year", currentYear);
+        .eq("month", selectedMonth)
+        .eq("year", selectedYear);
 
       setFeeRecords(feeData || []);
     } else {
@@ -137,8 +152,8 @@ const Fees = () => {
       // Create new record
       const { error } = await supabase.from("fee_records").insert({
         student_id: student.id,
-        month: currentMonth,
-        year: currentYear,
+        month: selectedMonth,
+        year: selectedYear,
         is_paid: true,
         amount: student.total_fee,
         payment_date: new Date().toISOString(),
@@ -170,24 +185,42 @@ const Fees = () => {
       <div>
         <h1 className="text-3xl font-bold">Fee Management</h1>
         <p className="text-muted-foreground">
-          Track and manage student fee payments for {new Date().toLocaleString("default", { month: "long" })} {currentYear}
+          Track and manage student fee payments
         </p>
       </div>
 
-      <div className="space-y-2">
-        <Label>Select Class</Label>
-        <Select value={selectedClass} onValueChange={setSelectedClass}>
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Choose a class" />
-          </SelectTrigger>
-          <SelectContent>
-            {classes.map((cls) => (
-              <SelectItem key={cls.id} value={cls.id}>
-                {cls.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Select Class</Label>
+          <Select value={selectedClass} onValueChange={setSelectedClass}>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose a class" />
+            </SelectTrigger>
+            <SelectContent>
+              {classes.map((cls) => (
+                <SelectItem key={cls.id} value={cls.id}>
+                  {cls.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Select Month</Label>
+          <Select value={selectedMonth.toString()} onValueChange={(val) => setSelectedMonth(parseInt(val))}>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose a month" />
+            </SelectTrigger>
+            <SelectContent>
+              {months.map((month) => (
+                <SelectItem key={month.value} value={month.value.toString()}>
+                  {month.label} {selectedYear}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {selectedClass && students.length > 0 && (
@@ -207,7 +240,7 @@ const Fees = () => {
                 return (
                   <TableRow key={student.id}>
                     <TableCell>{student.first_name} {student.last_name}</TableCell>
-                    <TableCell>${student.total_fee}</TableCell>
+                    <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
                     <TableCell>
                       {isPaid ? (
                         <Badge className="bg-success">Paid</Badge>
