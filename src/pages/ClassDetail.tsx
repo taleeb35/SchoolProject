@@ -154,9 +154,35 @@ const ClassDetail = () => {
     return feeRecords.find((r) => r.student_id === studentId);
   };
 
+  const sendNotification = async (student: Student, amount: number, paymentDate: string) => {
+    if (!student.phone) {
+      console.log("No phone number for student:", student.first_name);
+      return;
+    }
+
+    try {
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"];
+      
+      await supabase.functions.invoke("send-fee-notification", {
+        body: {
+          studentName: `${student.first_name} ${student.last_name || ""}`.trim(),
+          phoneNumber: student.phone,
+          amount: amount,
+          month: monthNames[selectedMonth - 1],
+          year: selectedYear,
+          paymentDate: paymentDate,
+        },
+      });
+    } catch (error) {
+      console.error("Error sending notification:", error);
+    }
+  };
+
   const handleFeeStatusChange = async (studentId: string, newStatus: boolean) => {
     const existingRecord = getStudentFeeRecord(studentId);
     const student = students.find((s) => s.id === studentId);
+    const paymentDate = new Date().toISOString().split('T')[0];
     
     if (existingRecord) {
       // Update existing record
@@ -165,7 +191,7 @@ const ClassDetail = () => {
         .update({
           is_paid: newStatus,
           amount: newStatus ? (student?.total_fee ?? 0) : 0,
-          payment_date: newStatus ? new Date().toISOString().split('T')[0] : null,
+          payment_date: newStatus ? paymentDate : null,
         })
         .eq("id", existingRecord.id);
 
@@ -180,6 +206,12 @@ const ClassDetail = () => {
           title: "Success",
           description: `Fee status updated to ${newStatus ? "Paid" : "Unpaid"}`,
         });
+        
+        // Send notification if marking as paid
+        if (newStatus && student) {
+          await sendNotification(student, student.total_fee, paymentDate);
+        }
+        
         loadStudents();
       }
     } else {
@@ -195,7 +227,7 @@ const ClassDetail = () => {
           year: selectedYear,
           amount: student.total_fee,
           is_paid: newStatus,
-          payment_date: newStatus ? new Date().toISOString().split('T')[0] : null,
+          payment_date: newStatus ? paymentDate : null,
         });
 
       if (error) {
@@ -209,6 +241,12 @@ const ClassDetail = () => {
           title: "Success",
           description: `Fee marked as ${newStatus ? "Paid" : "Unpaid"}`,
         });
+        
+        // Send notification if marking as paid
+        if (newStatus) {
+          await sendNotification(student, student.total_fee, paymentDate);
+        }
+        
         loadStudents();
       }
     }

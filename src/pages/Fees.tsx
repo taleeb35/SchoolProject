@@ -34,6 +34,7 @@ interface Student {
   id: string;
   first_name: string;
   last_name: string;
+  phone: string | null;
   total_fee: number;
 }
 
@@ -125,7 +126,7 @@ const Fees = () => {
   const loadStudents = async (classId: string) => {
     const { data: studentsData, error: studentsError } = await supabase
       .from("students")
-      .select("id, first_name, last_name, total_fee")
+      .select("id, first_name, last_name, phone, total_fee")
       .eq("class_id", classId)
       .order("first_name");
 
@@ -156,19 +157,44 @@ const Fees = () => {
     }
   };
 
+  const sendNotification = async (student: Student, amount: number, paymentDate: string) => {
+    if (!student.phone) {
+      console.log("No phone number for student:", student.first_name);
+      return;
+    }
+
+    try {
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"];
+      
+      await supabase.functions.invoke("send-fee-notification", {
+        body: {
+          studentName: `${student.first_name} ${student.last_name || ""}`.trim(),
+          phoneNumber: student.phone,
+          amount: amount,
+          month: monthNames[selectedMonth - 1],
+          year: selectedYear,
+          paymentDate: paymentDate,
+        },
+      });
+    } catch (error) {
+      console.error("Error sending notification:", error);
+    }
+  };
+
   const toggleFeeStatus = async (student: Student) => {
     const existingRecord = feeRecords.find((r) => r.student_id === student.id);
+    const newIsPaid = existingRecord ? !existingRecord.is_paid : true;
+    const paymentDate = new Date().toISOString().split('T')[0];
 
     if (existingRecord) {
       // Update existing record
       const { error } = await supabase
         .from("fee_records")
         .update({
-          is_paid: !existingRecord.is_paid,
-          amount: !existingRecord.is_paid ? student.total_fee : 0,
-          payment_date: !existingRecord.is_paid
-            ? new Date().toISOString()
-            : null,
+          is_paid: newIsPaid,
+          amount: newIsPaid ? student.total_fee : 0,
+          payment_date: newIsPaid ? paymentDate : null,
         })
         .eq("id", existingRecord.id);
 
@@ -183,6 +209,12 @@ const Fees = () => {
           title: "Success",
           description: "Fee status updated",
         });
+        
+        // Send notification if marking as paid
+        if (newIsPaid) {
+          await sendNotification(student, student.total_fee, paymentDate);
+        }
+        
         loadStudents(selectedClass);
       }
     } else {
@@ -193,7 +225,7 @@ const Fees = () => {
         year: selectedYear,
         is_paid: true,
         amount: student.total_fee,
-        payment_date: new Date().toISOString(),
+        payment_date: paymentDate,
       });
 
       if (error) {
@@ -207,6 +239,10 @@ const Fees = () => {
           title: "Success",
           description: "Fee marked as paid",
         });
+        
+        // Send notification
+        await sendNotification(student, student.total_fee, paymentDate);
+        
         loadStudents(selectedClass);
       }
     }
