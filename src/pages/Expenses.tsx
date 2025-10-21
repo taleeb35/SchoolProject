@@ -55,15 +55,26 @@ interface EmployeeSalary {
   };
 }
 
+interface EmployeeAttendance {
+  id: string;
+  employee_id: string;
+  month: number;
+  year: number;
+  leaves_taken: number;
+}
+
 const Expenses = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employeeSalaries, setEmployeeSalaries] = useState<EmployeeSalary[]>([]);
+  const [attendance, setAttendance] = useState<EmployeeAttendance[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [isExpenseDialogOpen, setIsExpenseDialogOpen] = useState(false);
   const [isSalaryDialogOpen, setIsSalaryDialogOpen] = useState(false);
+  const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editingSalary, setEditingSalary] = useState<EmployeeSalary | null>(null);
   const [newExpense, setNewExpense] = useState({
     description: "",
     amount: "",
@@ -71,6 +82,10 @@ const Expenses = () => {
   const [newSalary, setNewSalary] = useState({
     employee_id: "",
     amount: "",
+  });
+  const [newAttendance, setNewAttendance] = useState({
+    employee_id: "",
+    leaves_taken: "",
   });
   const [profitLoss, setProfitLoss] = useState({
     totalFees: 0,
@@ -99,6 +114,7 @@ const Expenses = () => {
     loadExpenses();
     loadEmployees();
     loadEmployeeSalaries();
+    loadAttendance();
     calculateProfitLoss();
   }, [selectedMonth, selectedYear]);
 
@@ -165,6 +181,24 @@ const Expenses = () => {
         employee: Array.isArray(item.employees) ? item.employees[0] : item.employees
       })) || [];
       setEmployeeSalaries(formattedData);
+    }
+  };
+
+  const loadAttendance = async () => {
+    const { data, error } = await supabase
+      .from("employee_attendance")
+      .select("*")
+      .eq("month", selectedMonth)
+      .eq("year", selectedYear);
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load attendance",
+      });
+    } else {
+      setAttendance(data || []);
     }
   };
 
@@ -309,6 +343,28 @@ const Expenses = () => {
     }
   };
 
+  const getDaysInMonth = (month: number, year: number) => {
+    return new Date(year, month, 0).getDate();
+  };
+
+  const calculateActualSalary = (employeeId: string) => {
+    const employee = employees.find(e => e.id === employeeId);
+    if (!employee) return { defaultSalary: 0, actualSalary: 0, leaves: 0, daysInMonth: 0 };
+
+    const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
+    const employeeAttendance = attendance.find(a => a.employee_id === employeeId);
+    const leaves = employeeAttendance?.leaves_taken || 0;
+    const dailySalary = employee.salary / daysInMonth;
+    const actualSalary = employee.salary - (dailySalary * leaves);
+
+    return {
+      defaultSalary: employee.salary,
+      actualSalary: Math.round(actualSalary),
+      leaves,
+      daysInMonth
+    };
+  };
+
   const handleAddSalary = async () => {
     if (!newSalary.employee_id || !newSalary.amount) {
       toast({
@@ -362,6 +418,42 @@ const Expenses = () => {
     }
   };
 
+  const handleEditSalary = async () => {
+    if (!editingSalary || !newSalary.employee_id || !newSalary.amount) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please fill in all fields",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("employee_salaries")
+      .update({
+        amount: parseFloat(newSalary.amount),
+      })
+      .eq("id", editingSalary.id);
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update salary",
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Salary updated successfully",
+      });
+      setNewSalary({ employee_id: "", amount: "" });
+      setEditingSalary(null);
+      setIsSalaryDialogOpen(false);
+      loadEmployeeSalaries();
+      calculateProfitLoss();
+    }
+  };
+
   const handleDeleteSalary = async (id: string) => {
     const { error } = await supabase
       .from("employee_salaries")
@@ -384,6 +476,70 @@ const Expenses = () => {
     }
   };
 
+  const handleAddAttendance = async () => {
+    if (!newAttendance.employee_id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select an employee",
+      });
+      return;
+    }
+
+    const leaves = parseInt(newAttendance.leaves_taken) || 0;
+
+    // Check if attendance already exists
+    const { data: existing } = await supabase
+      .from("employee_attendance")
+      .select("id")
+      .eq("employee_id", newAttendance.employee_id)
+      .eq("month", selectedMonth)
+      .eq("year", selectedYear)
+      .maybeSingle();
+
+    if (existing) {
+      // Update existing
+      const { error } = await supabase
+        .from("employee_attendance")
+        .update({ leaves_taken: leaves })
+        .eq("id", existing.id);
+
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to update attendance",
+        });
+        return;
+      }
+    } else {
+      // Insert new
+      const { error } = await supabase.from("employee_attendance").insert({
+        employee_id: newAttendance.employee_id,
+        month: selectedMonth,
+        year: selectedYear,
+        leaves_taken: leaves,
+      });
+
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to add attendance",
+        });
+        return;
+      }
+    }
+
+    toast({
+      title: "Success",
+      description: "Attendance updated successfully",
+    });
+    setNewAttendance({ employee_id: "", leaves_taken: "" });
+    setIsAttendanceDialogOpen(false);
+    loadAttendance();
+  };
+
   const openEditDialog = (expense: Expense) => {
     setEditingExpense(expense);
     setNewExpense({
@@ -397,6 +553,21 @@ const Expenses = () => {
     setIsExpenseDialogOpen(false);
     setEditingExpense(null);
     setNewExpense({ description: "", amount: "" });
+  };
+
+  const openEditSalaryDialog = (salary: EmployeeSalary) => {
+    setEditingSalary(salary);
+    setNewSalary({
+      employee_id: salary.employee_id,
+      amount: salary.amount.toString(),
+    });
+    setIsSalaryDialogOpen(true);
+  };
+
+  const closeSalaryDialog = () => {
+    setIsSalaryDialogOpen(false);
+    setEditingSalary(null);
+    setNewSalary({ employee_id: "", amount: "" });
   };
 
   return (
@@ -491,6 +662,7 @@ const Expenses = () => {
         <TabsList>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
           <TabsTrigger value="salaries">Employee Salaries</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
         </TabsList>
 
         <TabsContent value="expenses" className="space-y-4">
@@ -594,7 +766,7 @@ const Expenses = () => {
 
         <TabsContent value="salaries" className="space-y-4">
           <div className="flex justify-end">
-            <Dialog open={isSalaryDialogOpen} onOpenChange={setIsSalaryDialogOpen}>
+            <Dialog open={isSalaryDialogOpen} onOpenChange={closeSalaryDialog}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />
@@ -603,16 +775,21 @@ const Expenses = () => {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add Employee Salary</DialogTitle>
+                  <DialogTitle>{editingSalary ? 'Edit Employee Salary' : 'Add Employee Salary'}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="employee">Select Employee</Label>
                     <Select
                       value={newSalary.employee_id}
-                      onValueChange={(val) =>
-                        setNewSalary({ ...newSalary, employee_id: val })
-                      }
+                      onValueChange={(val) => {
+                        setNewSalary({ ...newSalary, employee_id: val });
+                        if (!editingSalary) {
+                          const salaryCalc = calculateActualSalary(val);
+                          setNewSalary({ employee_id: val, amount: salaryCalc.actualSalary.toString() });
+                        }
+                      }}
+                      disabled={!!editingSalary}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Choose an employee" />
@@ -626,8 +803,37 @@ const Expenses = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                  
+                  {newSalary.employee_id && (
+                    <div className="p-3 bg-muted rounded-md space-y-2 text-sm">
+                      {(() => {
+                        const calc = calculateActualSalary(newSalary.employee_id);
+                        return (
+                          <>
+                            <div className="flex justify-between">
+                              <span>Default Salary:</span>
+                              <span className="font-medium">PKR {calc.defaultSalary.toLocaleString('en-PK')}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Days in Month:</span>
+                              <span className="font-medium">{calc.daysInMonth}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Leaves Taken:</span>
+                              <span className="font-medium">{calc.leaves} days</span>
+                            </div>
+                            <div className="flex justify-between border-t pt-2 font-semibold">
+                              <span>Actual Salary:</span>
+                              <span className="text-primary">PKR {calc.actualSalary.toLocaleString('en-PK')}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+
                   <div className="space-y-2">
-                    <Label htmlFor="salary-amount">Amount (PKR)</Label>
+                    <Label htmlFor="salary-amount">Final Amount (PKR)</Label>
                     <Input
                       id="salary-amount"
                       type="number"
@@ -637,9 +843,13 @@ const Expenses = () => {
                         setNewSalary({ ...newSalary, amount: e.target.value })
                       }
                     />
+                    <p className="text-xs text-muted-foreground">You can adjust the final amount if needed</p>
                   </div>
-                  <Button onClick={handleAddSalary} className="w-full">
-                    Add Salary
+                  <Button 
+                    onClick={editingSalary ? handleEditSalary : handleAddSalary} 
+                    className="w-full"
+                  >
+                    {editingSalary ? 'Update Salary' : 'Add Salary'}
                   </Button>
                 </div>
               </DialogContent>
@@ -666,13 +876,22 @@ const Expenses = () => {
                       <TableCell>{months[salary.month - 1]?.label}</TableCell>
                       <TableCell>{salary.year}</TableCell>
                       <TableCell>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteSalary(salary.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditSalaryDialog(salary)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteSalary(salary.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -680,6 +899,107 @@ const Expenses = () => {
                   <TableRow>
                     <TableCell colSpan={5} className="text-center">
                       No salaries recorded for {months[selectedMonth - 1]?.label} {selectedYear}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="attendance" className="space-y-4">
+          <div className="flex justify-end">
+            <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add/Update Attendance
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Manage Employee Attendance</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="attendance-employee">Select Employee</Label>
+                    <Select
+                      value={newAttendance.employee_id}
+                      onValueChange={(val) => {
+                        const existing = attendance.find(a => a.employee_id === val);
+                        setNewAttendance({ 
+                          employee_id: val, 
+                          leaves_taken: existing ? existing.leaves_taken.toString() : "0" 
+                        });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose an employee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees.map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id}>
+                            {emp.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="leaves">Number of Leaves</Label>
+                    <Input
+                      id="leaves"
+                      type="number"
+                      min="0"
+                      placeholder="Enter number of leaves"
+                      value={newAttendance.leaves_taken}
+                      onChange={(e) =>
+                        setNewAttendance({ ...newAttendance, leaves_taken: e.target.value })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Days in {months[selectedMonth - 1]?.label}: {getDaysInMonth(selectedMonth, selectedYear)}
+                    </p>
+                  </div>
+                  <Button onClick={handleAddAttendance} className="w-full">
+                    Save Attendance
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee Name</TableHead>
+                  <TableHead>Default Salary</TableHead>
+                  <TableHead>Leaves Taken</TableHead>
+                  <TableHead>Days in Month</TableHead>
+                  <TableHead>Actual Salary</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {employees.length > 0 ? (
+                  employees.map((emp) => {
+                    const calc = calculateActualSalary(emp.id);
+                    return (
+                      <TableRow key={emp.id}>
+                        <TableCell className="font-medium">{emp.name}</TableCell>
+                        <TableCell>PKR {calc.defaultSalary.toLocaleString('en-PK')}</TableCell>
+                        <TableCell>{calc.leaves} days</TableCell>
+                        <TableCell>{calc.daysInMonth} days</TableCell>
+                        <TableCell className="font-semibold">
+                          PKR {calc.actualSalary.toLocaleString('en-PK')}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center">
+                      No employees found
                     </TableCell>
                   </TableRow>
                 )}
