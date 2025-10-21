@@ -137,6 +137,68 @@ const ClassDetail = () => {
     return record?.is_paid || false;
   };
 
+  const getStudentFeeRecord = (studentId: string) => {
+    return feeRecords.find((r) => r.student_id === studentId);
+  };
+
+  const handleFeeStatusChange = async (studentId: string, newStatus: boolean) => {
+    const existingRecord = getStudentFeeRecord(studentId);
+    
+    if (existingRecord) {
+      // Update existing record
+      const { error } = await supabase
+        .from("fee_records")
+        .update({
+          is_paid: newStatus,
+          payment_date: newStatus ? new Date().toISOString().split('T')[0] : null,
+        })
+        .eq("id", existingRecord.id);
+
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to update fee status",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: `Fee status updated to ${newStatus ? "Paid" : "Unpaid"}`,
+        });
+        loadStudents();
+      }
+    } else {
+      // Create new record
+      const student = students.find((s) => s.id === studentId);
+      if (!student) return;
+
+      const { error } = await supabase
+        .from("fee_records")
+        .insert({
+          student_id: studentId,
+          month: selectedMonth,
+          year: selectedYear,
+          amount: student.total_fee,
+          is_paid: newStatus,
+          payment_date: newStatus ? new Date().toISOString().split('T')[0] : null,
+        });
+
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to create fee record",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: `Fee marked as ${newStatus ? "Paid" : "Unpaid"}`,
+        });
+        loadStudents();
+      }
+    }
+  };
+
   const paidCount = students.filter((s) => getStudentFeeStatus(s.id)).length;
   const unpaidCount = students.length - paidCount;
 
@@ -211,6 +273,7 @@ const ClassDetail = () => {
               <TableHead>Total Fee</TableHead>
               <TableHead>Fee Status ({months[selectedMonth - 1]?.label})</TableHead>
               <TableHead>Joining Date</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -233,12 +296,33 @@ const ClassDetail = () => {
                       )}
                     </TableCell>
                     <TableCell>{new Date(student.joining_date).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        {!isPaid && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleFeeStatusChange(student.id, true)}
+                          >
+                            Mark Paid
+                          </Button>
+                        )}
+                        {isPaid && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleFeeStatusChange(student.id, false)}
+                          >
+                            Mark Unpaid
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
+                <TableCell colSpan={7} className="text-center">
                   No students found in this class
                 </TableCell>
               </TableRow>

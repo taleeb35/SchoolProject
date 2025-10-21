@@ -12,6 +12,7 @@ import ClassDetail from "./pages/ClassDetail";
 import Students from "./pages/Students";
 import Fees from "./pages/Fees";
 import Employees from "./pages/Employees";
+import Expenses from "./pages/Expenses";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -74,6 +75,14 @@ const App = () => (
               element={
                 <Layout>
                   <Fees />
+                </Layout>
+              }
+            />
+            <Route
+              path="/expenses"
+              element={
+                <Layout>
+                  <Expenses />
                 </Layout>
               }
             />

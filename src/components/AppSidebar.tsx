@@ -21,6 +21,7 @@ const menuItems = [
   { title: "Students", url: "/students", icon: Users },
   { title: "Employees", url: "/employees", icon: Briefcase },
   { title: "Fee Management", url: "/fees", icon: DollarSign },
+  { title: "Expenses", url: "/expenses", icon: DollarSign },
 ];
 
 export function AppSidebar() {
@@ -37,32 +38,32 @@ export function AppSidebar() {
           <SidebarGroupLabel>School Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    // Add tooltip when collapsed
-                    tooltip={collapsed ? item.title : undefined}
-                   >
+              {menuItems.map((item) => {
+                const isExactMatch = item.url === "/";
+                return (
+                  <SidebarMenuItem key={item.title}>
                     <NavLink
                       to={item.url}
-                      end // Use 'end' for exact match on dashboard link
+                      end={isExactMatch}
                       className={({ isActive }) =>
                         cn(
-                          "flex items-center gap-2", // Ensure layout consistency
-                          isActive
-                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                            : ""
+                          isActive && "bg-sidebar-accent text-sidebar-accent-foreground"
                         )
                       }
                     >
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      {/* Text is only visible when expanded */}
-                      {!collapsed && <span className="truncate">{item.title}</span>}
+                      {({ isActive }) => (
+                        <SidebarMenuButton
+                          tooltip={collapsed ? item.title : undefined}
+                          isActive={isActive}
+                        >
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          {!collapsed && <span className="truncate">{item.title}</span>}
+                        </SidebarMenuButton>
+                      )}
                     </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                  </SidebarMenuItem>
+                );
+              })}
               {/* Sign Out Button */}
                <SidebarMenuItem>
                 <SidebarMenuButton
