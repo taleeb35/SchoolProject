@@ -76,18 +76,27 @@ const handler = async (req: Request): Promise<Response> => {
     // Format phone number (ensure it starts with +)
     const formattedPhone = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
 
-    // Create SMS message
-    const smsMessage = `Fee Payment Receipt - Student: ${studentName}, Amount: Rs. ${amount} for ${month} ${year}. Payment Date: ${paymentDate}. Thank you!`;
+    // Create receipt message for WhatsApp
+    const receiptMessage = `
+*FEE PAYMENT RECEIPT*
 
-    // Send SMS notification only
-    const smsResult = await sendSMS(formattedPhone, smsMessage);
+Student: ${studentName}
+Month: ${month} ${year}
+Amount Paid: Rs. ${amount}
+Payment Date: ${paymentDate}
 
-    console.log("SMS result:", smsResult);
+Thank you for your payment!
+    `.trim();
+
+    // Send WhatsApp notification
+    const whatsappResult = await sendWhatsApp(formattedPhone, receiptMessage);
+
+    console.log("WhatsApp result:", whatsappResult);
 
     return new Response(
       JSON.stringify({
         success: true,
-        sms: smsResult,
+        whatsapp: whatsappResult,
       }),
       {
         status: 200,
