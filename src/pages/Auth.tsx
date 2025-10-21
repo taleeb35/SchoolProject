@@ -13,7 +13,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
+  
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -22,36 +22,18 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`
-          }
-        });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (error) throw error;
+      if (error) throw error;
 
-        toast({
-          title: "Account created!",
-          description: "You have successfully signed up. You can now sign in.",
-        });
-        setIsSignUp(false);
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (error) throw error;
-
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully logged in.",
-        });
-        navigate("/");
-      }
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
+      });
+      navigate("/");
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -101,7 +83,7 @@ const Auth = () => {
           </div>
           <CardTitle className="text-3xl">School Management</CardTitle>
           <CardDescription>
-            {showForgotPassword ? "Reset your password" : isSignUp ? "Create your admin account" : "Sign in to your admin account"}
+            {showForgotPassword ? "Reset your password" : "Sign in to your admin account"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -131,24 +113,14 @@ const Auth = () => {
               </div>
             )}
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={loading}>
-              {loading ? "Loading..." : showForgotPassword ? "Send Reset Link" : isSignUp ? "Sign Up" : "Sign In"}
+              {loading ? "Loading..." : showForgotPassword ? "Send Reset Link" : "Sign In"}
             </Button>
           </form>
           <div className="mt-4 text-center space-y-2">
-            {!showForgotPassword && (
-              <Button
-                variant="link"
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="text-sm w-full"
-              >
-                {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
-              </Button>
-            )}
             <Button
               variant="link"
               onClick={() => {
                 setShowForgotPassword(!showForgotPassword);
-                setIsSignUp(false);
               }}
               className="text-sm w-full"
             >

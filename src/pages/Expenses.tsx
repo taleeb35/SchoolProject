@@ -798,7 +798,7 @@ const Expenses = () => {
 
         <TabsContent value="salaries" className="space-y-4">
           <div className="flex justify-end">
-            <Dialog open={isSalaryDialogOpen} onOpenChange={closeSalaryDialog}>
+            <Dialog open={isSalaryDialogOpen} onOpenChange={(open) => open ? setIsSalaryDialogOpen(true) : closeSalaryDialog()}>
               <DialogTrigger asChild>
                 <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                   <Plus className="mr-2 h-4 w-4" />
