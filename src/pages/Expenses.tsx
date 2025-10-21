@@ -701,7 +701,7 @@ const Expenses = () => {
           <div className="flex justify-end">
             <Dialog open={isExpenseDialogOpen} onOpenChange={closeExpenseDialog}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Expense
                 </Button>
@@ -736,7 +736,7 @@ const Expenses = () => {
                   </div>
                   <Button 
                     onClick={editingExpense ? handleEditExpense : handleAddExpense} 
-                    className="w-full"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     {editingExpense ? 'Update Expense' : 'Add Expense'}
                   </Button>
@@ -800,7 +800,7 @@ const Expenses = () => {
           <div className="flex justify-end">
             <Dialog open={isSalaryDialogOpen} onOpenChange={closeSalaryDialog}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Employee Salary
                 </Button>
@@ -879,7 +879,7 @@ const Expenses = () => {
                   </div>
                   <Button 
                     onClick={editingSalary ? handleEditSalary : handleAddSalary} 
-                    className="w-full"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     {editingSalary ? 'Update Salary' : 'Add Salary'}
                   </Button>
@@ -951,7 +951,6 @@ const Expenses = () => {
                 <TableRow>
                   <TableHead className="sticky left-0 bg-background z-10 min-w-[150px]">Name</TableHead>
                   <TableHead className="min-w-[100px]">Salary</TableHead>
-                  <TableHead className="min-w-[120px]">Date of Joining</TableHead>
                   {Array.from({ length: getDaysInMonth(selectedMonth, selectedYear) }, (_, i) => (
                     <TableHead key={i + 1} className="text-center min-w-[60px]">{i + 1}</TableHead>
                   ))}
@@ -966,9 +965,6 @@ const Expenses = () => {
                       <TableRow key={emp.id}>
                         <TableCell className="sticky left-0 bg-background z-10 font-medium">{emp.name}</TableCell>
                         <TableCell>{emp.salary.toLocaleString('en-PK')}</TableCell>
-                        <TableCell>
-                          {new Date(employees.find(e => e.id === emp.id)?.['joining_date' as keyof Employee] as string || '').toLocaleDateString('en-PK')}
-                        </TableCell>
                         {Array.from({ length: getDaysInMonth(selectedMonth, selectedYear) }, (_, i) => {
                           const day = i + 1;
                           const status = empAttendance[day] || 'P';
@@ -1000,7 +996,7 @@ const Expenses = () => {
                           <Button
                             size="sm"
                             onClick={() => handleSaveAttendance(emp.id)}
-                            variant="outline"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
                           >
                             Save
                           </Button>
@@ -1010,7 +1006,7 @@ const Expenses = () => {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={getDaysInMonth(selectedMonth, selectedYear) + 4} className="text-center">
+                    <TableCell colSpan={getDaysInMonth(selectedMonth, selectedYear) + 3} className="text-center">
                       No employees found
                     </TableCell>
                   </TableRow>
