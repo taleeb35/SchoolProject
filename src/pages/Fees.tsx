@@ -58,6 +58,7 @@ const Fees = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear] = useState(new Date().getFullYear());
   const [searchQuery, setSearchQuery] = useState("");
+  const [feeStatusFilter, setFeeStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const { toast } = useToast();
@@ -216,11 +217,20 @@ const Fees = () => {
     return record?.is_paid || false;
   };
 
-  // Filter students based on search query
+  // Filter students based on search query and fee status
   const filteredStudents = students.filter((student) => {
     const fullName = `${student.first_name} ${student.last_name || ""}`.toLowerCase();
     const query = searchQuery.toLowerCase();
-    return fullName.includes(query);
+    const matchesSearch = fullName.includes(query);
+    
+    // Apply fee status filter
+    if (feeStatusFilter === "all") {
+      return matchesSearch;
+    }
+    const isPaid = getStudentFeeStatus(student.id);
+    const matchesFeeStatus = feeStatusFilter === "paid" ? isPaid : !isPaid;
+    
+    return matchesSearch && matchesFeeStatus;
   });
 
   // Pagination logic
@@ -229,10 +239,10 @@ const Fees = () => {
   const endIndex = startIndex + pageSize;
   const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
 
-  // Reset to page 1 when search query, page size, or selected class changes
+  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, pageSize, selectedClass]);
+  }, [searchQuery, feeStatusFilter, pageSize, selectedClass]);
 
   return (
     <div className="space-y-6">
@@ -243,7 +253,7 @@ const Fees = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="space-y-2">
           <Label>Select Class</Label>
           <Select value={selectedClass} onValueChange={setSelectedClass}>
@@ -283,6 +293,20 @@ const Fees = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Fee Status</Label>
+          <Select value={feeStatusFilter} onValueChange={setFeeStatusFilter}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="unpaid">Unpaid</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">

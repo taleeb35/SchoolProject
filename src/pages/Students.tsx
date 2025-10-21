@@ -66,6 +66,7 @@ const Students = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedClassFilter, setSelectedClassFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [formData, setFormData] = useState({
@@ -125,26 +126,31 @@ const Students = () => {
     }
   };
 
-  // Filter students based on search query
+  // Filter students based on search query and class filter
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredStudents(students);
-      setCurrentPage(1);
-      return;
+    let filtered = students;
+
+    // Apply class filter
+    if (selectedClassFilter !== "all") {
+      filtered = filtered.filter((student) => student.class_id === selectedClassFilter);
     }
 
-    const query = searchQuery.toLowerCase();
-    const filtered = students.filter(
-      (student) =>
-        student.first_name.toLowerCase().includes(query) ||
-        student.last_name?.toLowerCase().includes(query) ||
-        student.father_name?.toLowerCase().includes(query) ||
-        student.phone?.toLowerCase().includes(query) ||
-        student.classes.name.toLowerCase().includes(query)
-    );
+    // Apply search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (student) =>
+          student.first_name.toLowerCase().includes(query) ||
+          student.last_name?.toLowerCase().includes(query) ||
+          student.father_name?.toLowerCase().includes(query) ||
+          student.phone?.toLowerCase().includes(query) ||
+          student.classes.name.toLowerCase().includes(query)
+      );
+    }
+
     setFilteredStudents(filtered);
     setCurrentPage(1);
-  }, [searchQuery, students]);
+  }, [searchQuery, selectedClassFilter, students]);
 
   // Calculate pagination
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
@@ -366,8 +372,8 @@ const Students = () => {
         </Dialog>
       </div>
 
-      {/* Search Filter */}
-      <div className="flex items-center gap-2">
+      {/* Search and Filter */}
+      <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -377,7 +383,22 @@ const Students = () => {
             className="pl-9"
           />
         </div>
-        <p className="text-sm text-muted-foreground">
+        <div className="w-48">
+          <Select value={selectedClassFilter} onValueChange={setSelectedClassFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Filter by class" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Classes</SelectItem>
+              {classes.map((cls) => (
+                <SelectItem key={cls.id} value={cls.id}>
+                  {cls.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-sm text-muted-foreground whitespace-nowrap">
           Showing {currentStudents.length} of {filteredStudents.length} students
         </p>
       </div>

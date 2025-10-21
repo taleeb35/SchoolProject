@@ -73,28 +73,24 @@ export function WhatsAppHomework({ classId, className, whatsappLink: initialLink
       return;
     }
 
-    // Create WhatsApp message
-    let message = `*Homework for ${className}*\n\n`;
-    if (homeworkText) {
-      message += homeworkText;
-    }
-    
-    // Note: WhatsApp Web doesn't support sending images directly via URL
-    // Users will need to manually attach images after opening WhatsApp
-    if (selectedImages.length > 0) {
-      message += `\n\n_Note: Please attach ${selectedImages.length} image(s) manually_`;
-    }
-
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `${whatsappLink}?text=${encodedMessage}`;
-    
-    // Open WhatsApp
-    window.open(whatsappUrl, '_blank');
+    // Open WhatsApp group
+    window.open(whatsappLink, '_blank');
     
     toast({
-      title: "Opening WhatsApp",
-      description: "WhatsApp will open with the homework message",
+      title: "Opening WhatsApp Group",
+      description: "Please paste your homework message and attach images manually in the group",
     });
+    
+    // Copy homework text to clipboard for easy pasting
+    if (homeworkText) {
+      let message = `*Homework for ${className}*\n\n${homeworkText}`;
+      navigator.clipboard.writeText(message).then(() => {
+        toast({
+          title: "Text Copied",
+          description: "Homework text copied to clipboard. Paste it in WhatsApp group",
+        });
+      });
+    }
   };
 
   return (
@@ -105,7 +101,7 @@ export function WhatsAppHomework({ classId, className, whatsappLink: initialLink
           WhatsApp Homework
         </CardTitle>
         <CardDescription>
-          Set WhatsApp group link and send homework updates to the class
+          Set WhatsApp group link. Text will be copied to clipboard and images need to be attached manually
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -182,7 +178,7 @@ export function WhatsAppHomework({ classId, className, whatsappLink: initialLink
 
               <Button onClick={handleSendHomework} className="w-full">
                 <Send className="h-4 w-4 mr-2" />
-                Send to WhatsApp Group
+                Open WhatsApp & Copy Text
               </Button>
             </div>
           </>
