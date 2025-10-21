@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { sortClasses } from "@/lib/classUtils";
 import {
   Dialog,
   DialogContent,
@@ -84,7 +85,7 @@ const Students = () => {
         description: error.message,
       });
     } else {
-      setClasses(data || []);
+      setClasses(sortClasses(data || []));
     }
   };
 
@@ -249,16 +250,15 @@ const Students = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="add-last_name">Last Name</Label>
+                  <Label htmlFor="add-last_name">Last Name (Optional)</Label>
                   <Input
                     id="add-last_name"
                     value={formData.last_name}
                     onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="add-father_name">Father Name</Label>
+                  <Label htmlFor="add-father_name">Father Name (Optional)</Label>
                   <Input
                     id="add-father_name"
                     value={formData.father_name}
@@ -350,8 +350,8 @@ const Students = () => {
                   <TableCell>{student.father_name || "-"}</TableCell>
                   <TableCell>{student.phone || "-"}</TableCell>
                   <TableCell>{student.classes.name}</TableCell>
-                  <TableCell>${student.classes.monthly_fee.toFixed(2)}</TableCell>
-                  <TableCell>${student.total_fee.toFixed(2)}</TableCell>
+                  <TableCell>PKR {student.classes.monthly_fee.toLocaleString('en-PK')}</TableCell>
+                  <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
                   <TableCell>{new Date(student.joining_date).toLocaleDateString()}</TableCell>
                   <TableCell className="text-right">
                     <Button
@@ -401,16 +401,15 @@ const Students = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-last_name">Last Name</Label>
+                <Label htmlFor="edit-last_name">Last Name (Optional)</Label>
                 <Input
                   id="edit-last_name"
                   value={formData.last_name}
                   onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-father_name">Father Name</Label>
+                <Label htmlFor="edit-father_name">Father Name (Optional)</Label>
                 <Input
                   id="edit-father_name"
                   value={formData.father_name}

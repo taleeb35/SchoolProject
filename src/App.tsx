@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { Layout } from "@/components/Layout";
 import Dashboard from "./pages/Dashboard";
 import Classes from "./pages/Classes";
+import ClassDetail from "./pages/ClassDetail";
 import Students from "./pages/Students";
 import Fees from "./pages/Fees";
 import Employees from "./pages/Employees";
@@ -41,6 +42,14 @@ const App = () => (
               element={
                 <Layout>
                   <Classes />
+                </Layout>
+              }
+            />
+            <Route
+              path="/classes/:classId"
+              element={
+                <Layout>
+                  <ClassDetail />
                 </Layout>
               }
             />

@@ -69,6 +69,29 @@ const Fees = () => {
     loadClasses();
   }, []);
 
+  // Import sorting utility at the top
+  const sortClasses = (classes: Class[]) => {
+    const classOrder = ['PG', 'Nursery', 'Prep', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+    
+    return [...classes].sort((a, b) => {
+      const aIndex = classOrder.findIndex(order => 
+        a.name.toLowerCase().includes(order.toLowerCase())
+      );
+      const bIndex = classOrder.findIndex(order => 
+        b.name.toLowerCase().includes(order.toLowerCase())
+      );
+      
+      if (aIndex !== -1 && bIndex !== -1) {
+        return aIndex - bIndex;
+      }
+      
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      
+      return a.name.localeCompare(b.name);
+    });
+  };
+
   useEffect(() => {
     if (selectedClass) {
       loadStudents(selectedClass);
@@ -82,7 +105,7 @@ const Fees = () => {
       .order("name");
 
     if (!error && data) {
-      setClasses(data);
+      setClasses(sortClasses(data));
     }
   };
 

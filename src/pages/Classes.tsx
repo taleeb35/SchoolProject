@@ -1,9 +1,11 @@
 // src/pages/Classes.tsx
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { sortClasses } from "@/lib/classUtils";
 import {
   Table,
   TableBody,
@@ -34,6 +36,7 @@ interface Class {
 }
 
 const Classes = () => {
+  const navigate = useNavigate();
   const [classes, setClasses] = useState<Class[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -58,15 +61,7 @@ const Classes = () => {
         description: error.message,
       });
     } else {
-      // Sort classes: PG first, then Nursery, then alphabetically
-      const sortedData = (data || []).sort((a, b) => {
-        if (a.name.toLowerCase().includes('pg')) return -1;
-        if (b.name.toLowerCase().includes('pg')) return 1;
-        if (a.name.toLowerCase().includes('nursery')) return -1;
-        if (b.name.toLowerCase().includes('nursery')) return 1;
-        return a.name.localeCompare(b.name);
-      });
-      setClasses(sortedData);
+      setClasses(sortClasses(data || []));
     }
   };
 
@@ -234,10 +229,14 @@ const Classes = () => {
           <TableBody>
             {classes.length > 0 ? (
               classes.map((classItem) => (
-                <TableRow key={classItem.id}>
+                <TableRow 
+                  key={classItem.id} 
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => navigate(`/classes/${classItem.id}`)}
+                >
                   <TableCell className="font-medium">{classItem.name}</TableCell>
                   <TableCell>PKR {classItem.monthly_fee?.toLocaleString('en-PK') || '0'}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <Dialog open={isEditDialogOpen && currentClass?.id === classItem.id} onOpenChange={(open) => { if (!open) { setIsEditDialogOpen(false); resetFormData(); } else { openEditDialog(classItem); } }}>
                       <DialogTrigger asChild>
                         <Button variant="ghost" size="icon" onClick={() => openEditDialog(classItem)}>

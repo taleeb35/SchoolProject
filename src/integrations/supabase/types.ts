@@ -156,7 +156,7 @@ export type Database = {
           first_name: string
           id: string
           joining_date: string
-          last_name: string
+          last_name: string | null
           phone: string | null
           total_fee: number
         }
@@ -167,7 +167,7 @@ export type Database = {
           first_name: string
           id?: string
           joining_date?: string
-          last_name: string
+          last_name?: string | null
           phone?: string | null
           total_fee?: number
         }
@@ -178,7 +178,7 @@ export type Database = {
           first_name?: string
           id?: string
           joining_date?: string
-          last_name?: string
+          last_name?: string | null
           phone?: string | null
           total_fee?: number
         }

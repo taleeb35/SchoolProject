@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { sortClasses } from "@/lib/classUtils";
 import {
   Dialog,
   DialogContent,
@@ -80,7 +81,7 @@ const Employees = () => {
         description: error.message,
       });
     } else {
-      setClasses(data || []);
+      setClasses(sortClasses(data || []));
     }
   };
 
@@ -381,7 +382,7 @@ const Employees = () => {
                   <TableCell className="font-medium">{employee.name}</TableCell>
                   <TableCell>{employee.designation || "-"}</TableCell>
                   <TableCell>{employee.phone || "-"}</TableCell>
-                  <TableCell>${employee.salary.toFixed(2)}</TableCell>
+                  <TableCell>PKR {employee.salary.toLocaleString('en-PK')}</TableCell>
                   <TableCell>{new Date(employee.joining_date).toLocaleDateString()}</TableCell>
                   <TableCell>
                     {employee.employee_classes?.[0]?.classes?.name || "-"}
