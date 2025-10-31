@@ -581,10 +581,12 @@ const Expenses = () => {
     setIsExpenseDialogOpen(true);
   };
 
-  const closeExpenseDialog = () => {
-    setIsExpenseDialogOpen(false);
-    setEditingExpense(null);
-    setNewExpense({ description: "", amount: "" });
+  const handleExpenseDialogChange = (open: boolean) => {
+    setIsExpenseDialogOpen(open);
+    if (!open) {
+      setEditingExpense(null);
+      setNewExpense({ description: "", amount: "" });
+    }
   };
 
   const openEditSalaryDialog = (salary: EmployeeSalary) => {
@@ -596,10 +598,12 @@ const Expenses = () => {
     setIsSalaryDialogOpen(true);
   };
 
-  const closeSalaryDialog = () => {
-    setIsSalaryDialogOpen(false);
-    setEditingSalary(null);
-    setNewSalary({ employee_id: "", amount: "" });
+  const handleSalaryDialogChange = (open: boolean) => {
+    setIsSalaryDialogOpen(open);
+    if (!open) {
+      setEditingSalary(null);
+      setNewSalary({ employee_id: "", amount: "" });
+    }
   };
 
   return (
@@ -699,9 +703,9 @@ const Expenses = () => {
 
         <TabsContent value="expenses" className="space-y-4">
           <div className="flex justify-end">
-            <Dialog open={isExpenseDialogOpen} onOpenChange={closeExpenseDialog}>
+            <Dialog open={isExpenseDialogOpen} onOpenChange={handleExpenseDialogChange}>
               <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Expense
                 </Button>
@@ -798,7 +802,7 @@ const Expenses = () => {
 
         <TabsContent value="salaries" className="space-y-4">
           <div className="flex justify-end">
-            <Dialog open={isSalaryDialogOpen} onOpenChange={(open) => open ? setIsSalaryDialogOpen(true) : closeSalaryDialog()}>
+            <Dialog open={isSalaryDialogOpen} onOpenChange={handleSalaryDialogChange}>
               <DialogTrigger asChild>
                 <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                   <Plus className="mr-2 h-4 w-4" />
