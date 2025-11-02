@@ -67,7 +67,7 @@ const ClassDetail = () => {
   const [selectedYear] = useState(new Date().getFullYear());
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(15);
+  const [pageSize, setPageSize] = useState(25);
   const { toast } = useToast();
 
   const months = [
@@ -292,10 +292,10 @@ const ClassDetail = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="15">15</SelectItem>
               <SelectItem value="25">25</SelectItem>
-              <SelectItem value="30">30</SelectItem>
               <SelectItem value="50">50</SelectItem>
+              <SelectItem value="75">75</SelectItem>
+              <SelectItem value="100">100</SelectItem>
             </SelectContent>
           </Select>
         </div>

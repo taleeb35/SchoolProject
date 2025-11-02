@@ -64,7 +64,7 @@ const Employees = () => {
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -141,7 +141,7 @@ const Employees = () => {
     );
     setFilteredEmployees(filtered);
     setCurrentPage(1);
-  }, [searchQuery, employees]);
+  }, [searchQuery, employees, itemsPerPage]);
 
   // Calculate pagination
   const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
@@ -411,6 +411,19 @@ const Employees = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
           />
+        </div>
+        <div className="w-32">
+          <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(parseInt(val))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="75">75</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <p className="text-sm text-muted-foreground">
           Showing {currentEmployees.length} of {filteredEmployees.length} employees

@@ -68,7 +68,7 @@ const Students = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -150,7 +150,7 @@ const Students = () => {
 
     setFilteredStudents(filtered);
     setCurrentPage(1);
-  }, [searchQuery, selectedClassFilter, students]);
+  }, [searchQuery, selectedClassFilter, students, itemsPerPage]);
 
   // Calculate pagination
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
@@ -395,6 +395,19 @@ const Students = () => {
                   {cls.name}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-32">
+          <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(parseInt(val))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="75">75</SelectItem>
+              <SelectItem value="100">100</SelectItem>
             </SelectContent>
           </Select>
         </div>

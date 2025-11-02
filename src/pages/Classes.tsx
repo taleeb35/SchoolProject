@@ -34,6 +34,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Edit, Search } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Class {
   id: string;
@@ -52,7 +59,7 @@ const Classes = () => {
   const [currentClass, setCurrentClass] = useState<Class | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [formData, setFormData] = useState({ name: "", description: "", monthly_fee: "" });
   const { toast } = useToast();
 
@@ -94,7 +101,7 @@ const Classes = () => {
     );
     setFilteredClasses(filtered);
     setCurrentPage(1);
-  }, [searchQuery, classes]);
+  }, [searchQuery, classes, itemsPerPage]);
 
   // Calculate pagination
   const totalPages = Math.ceil(filteredClasses.length / itemsPerPage);
@@ -264,6 +271,19 @@ const Classes = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
           />
+        </div>
+        <div className="w-32">
+          <Select value={itemsPerPage.toString()} onValueChange={(val) => setItemsPerPage(parseInt(val))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+              <SelectItem value="75">75</SelectItem>
+              <SelectItem value="100">100</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <p className="text-sm text-muted-foreground">
           Showing {currentClasses.length} of {filteredClasses.length} classes
