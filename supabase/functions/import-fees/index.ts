@@ -97,15 +97,32 @@ const handler = async (req: Request): Promise<Response> => {
           continue;
         }
 
-        // Find the class
-        const { data: classData, error: classError } = await supabase
+        // Find the class - try exact match first, then without "Class" prefix
+        let { data: classData, error: classError } = await supabase
           .from("classes")
           .select("id")
           .ilike("name", className)
           .maybeSingle();
 
+        // If not found and className starts with "Class ", try without prefix
+        if (!classData && className.toLowerCase().startsWith("class ")) {
+          const classNameWithoutPrefix = className.substring(6).trim();
+          const { data: altClassData } = await supabase
+            .from("classes")
+            .select("id")
+            .ilike("name", classNameWithoutPrefix)
+            .maybeSingle();
+          classData = altClassData;
+        }
+
         if (classError || !classData) {
-          results.errors.push(`Row ${i + 1}: Class "${className}" not found for student ${studentName}`);
+          // Get available classes for better error message
+          const { data: availableClasses } = await supabase
+            .from("classes")
+            .select("name")
+            .order("name");
+          const classNames = availableClasses?.map(c => c.name).join(", ") || "none";
+          results.errors.push(`Row ${i + 1}: Class "${className}" not found for student ${studentName}. Available classes: ${classNames}`);
           results.failed++;
           continue;
         }
