@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Upload } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -62,6 +63,8 @@ const Fees = () => {
   const [feeStatusFilter, setFeeStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const months = [
@@ -254,13 +257,78 @@ const Fees = () => {
     setCurrentPage(1);
   }, [searchQuery, feeStatusFilter, pageSize, selectedClass]);
 
+  const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const { data, error } = await supabase.functions.invoke("import-fees", {
+        body: formData,
+      });
+
+      if (error) throw error;
+
+      const result = data as { success: number; failed: number; errors: string[] };
+
+      toast({
+        title: "Import Complete",
+        description: `Successfully processed ${result.success} records. ${result.failed} failed.`,
+        variant: result.failed > 0 ? "destructive" : "default",
+      });
+
+      if (result.errors.length > 0) {
+        console.log("Import errors:", result.errors);
+      }
+
+      // Reload the current view
+      if (selectedClass) {
+        loadStudents(selectedClass);
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Import Failed",
+        description: error.message || "Failed to import Excel file",
+      });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Fee Management</h1>
-        <p className="text-muted-foreground">
-          Track and manage student fee payments
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Fee Management</h1>
+          <p className="text-muted-foreground">
+            Track and manage student fee payments
+          </p>
+        </div>
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={handleImportExcel}
+            className="hidden"
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            variant="outline"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {isImporting ? "Importing..." : "Import CSV/Excel"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
