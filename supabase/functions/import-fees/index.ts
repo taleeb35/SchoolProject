@@ -28,14 +28,16 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Read the file as text (CSV format)
     const text = await file.text();
-    const lines = text.split("\n").filter(line => line.trim());
+    // Support both Unix and Windows newlines and ignore empty lines
+    const lines = text.split(/\r?\n/).filter(line => line.trim());
     
     if (lines.length < 2) {
       throw new Error("File must contain at least a header row and one data row");
     }
 
     // Parse header to find column indices
-    const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/"/g, ""));
+    const headersLine = lines[0].replace(/^\uFEFF/, "");
+    const headers = headersLine.split(",").map(h => h.trim().toLowerCase().replace(/"/g, ""));
     
     const getColumnIndex = (possibleNames: string[]) => {
       for (const name of possibleNames) {
@@ -45,6 +47,8 @@ const handler = async (req: Request): Promise<Response> => {
       return -1;
     };
 
+    const firstNameIdx = getColumnIndex(["first name", "first_name", "firstname", "given name", "given_name"]);
+    const lastNameIdx = getColumnIndex(["last name", "last_name", "lastname", "surname", "family name", "family_name"]);
     const studentNameIdx = getColumnIndex(["student name", "student_name", "studentname", "name"]);
     const classNameIdx = getColumnIndex(["class name", "class_name", "classname", "class"]);
     const totalFeeIdx = getColumnIndex(["total fee", "total_fee", "totalfee", "fee"]);
@@ -52,10 +56,10 @@ const handler = async (req: Request): Promise<Response> => {
     const monthIdx = getColumnIndex(["month"]);
     const yearIdx = getColumnIndex(["year"]);
 
-    console.log("Column indices:", { studentNameIdx, classNameIdx, totalFeeIdx, feePaidIdx, monthIdx, yearIdx });
+    console.log("Column indices:", { firstNameIdx, lastNameIdx, studentNameIdx, classNameIdx, totalFeeIdx, feePaidIdx, monthIdx, yearIdx });
 
-    if (studentNameIdx === -1 || classNameIdx === -1) {
-      throw new Error("Required columns not found. CSV must have 'Student Name' and 'Class Name' columns");
+    if ((firstNameIdx === -1 && studentNameIdx === -1) || classNameIdx === -1) {
+      throw new Error("Required columns not found. CSV must have either 'First Name' (and optional 'Last Name') with 'Class Name', or 'Student Name' with 'Class Name'.");
     }
 
     const results = {
@@ -75,24 +79,49 @@ const handler = async (req: Request): Promise<Response> => {
     for (let i = 1; i < lines.length; i++) {
       try {
         const values = lines[i].split(",").map(v => v.trim().replace(/"/g, ""));
-        
-        const studentName = values[studentNameIdx] || "";
-        const className = values[classNameIdx] || "";
-        const totalFee = totalFeeIdx !== -1 ? Number(values[totalFeeIdx]) || 0 : 0;
-        const feePaid = feePaidIdx !== -1 ? values[feePaidIdx].toLowerCase() : "no";
-        const monthName = monthIdx !== -1 ? values[monthIdx].toLowerCase() : "";
-        const year = yearIdx !== -1 ? Number(values[yearIdx]) || new Date().getFullYear() : new Date().getFullYear();
 
-        if (!studentName || !className) {
-          results.errors.push(`Row ${i + 1}: Missing student name or class name`);
+        const getVal = (idx: number) => (idx !== -1 ? (values[idx] || "") : "");
+        const rawFirst = getVal(firstNameIdx);
+        const rawLast = getVal(lastNameIdx);
+        const rawStudent = getVal(studentNameIdx);
+        const className = getVal(classNameIdx);
+        const totalFee = totalFeeIdx !== -1 ? Number(getVal(totalFeeIdx)) || 0 : 0;
+        const feePaidRaw = feePaidIdx !== -1 ? getVal(feePaidIdx) : "no";
+        const monthRaw = monthIdx !== -1 ? getVal(monthIdx) : "";
+        const year = yearIdx !== -1 ? Number(getVal(yearIdx)) || new Date().getFullYear() : new Date().getFullYear();
+
+        // Derive first/last when only "Student Name" is provided
+        let firstName = rawFirst;
+        let lastName = rawLast;
+        if ((!firstName || !lastName) && rawStudent) {
+          const parts = rawStudent.split(" ").filter(Boolean);
+          firstName = firstName || parts[0] || "";
+          lastName = lastName || parts.slice(1).join(" ");
+        }
+
+        // Normalize
+        firstName = firstName.trim();
+        lastName = (lastName || "").trim();
+        const displayName = `${firstName} ${lastName}`.trim();
+        const feePaid = feePaidRaw.toLowerCase();
+        const monthToken = monthRaw.toLowerCase();
+
+        if (!firstName || !className) {
+          results.errors.push(`Row ${i + 1}: Missing first name or class name`);
           results.failed++;
           continue;
         }
 
-        // Convert month name to number
-        const monthNumber = monthMap[monthName];
+        // Convert month to number (supports names, 3-letter abbreviations, or 1-12)
+        let monthNumber: number | undefined;
+        if (/^\d{1,2}$/.test(monthToken)) {
+          monthNumber = Math.max(1, Math.min(12, parseInt(monthToken, 10)));
+        } else {
+          const abbrevMap: { [key: string]: number } = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12 };
+          monthNumber = monthMap[monthToken] || abbrevMap[monthToken];
+        }
         if (!monthNumber) {
-          results.errors.push(`Row ${i + 1}: Invalid month "${monthName}" for student ${studentName}`);
+          results.errors.push(`Row ${i + 1}: Invalid month "${monthRaw}" for student ${displayName}`);
           results.failed++;
           continue;
         }
@@ -122,24 +151,39 @@ const handler = async (req: Request): Promise<Response> => {
             .select("name")
             .order("name");
           const classNames = availableClasses?.map(c => c.name).join(", ") || "none";
-          results.errors.push(`Row ${i + 1}: Class "${className}" not found for student ${studentName}. Available classes: ${classNames}`);
+          results.errors.push(`Row ${i + 1}: Class "${className}" not found for student ${displayName}. Available classes: ${classNames}`);
           results.failed++;
           continue;
         }
 
         // Find the student by name and class
-        const nameParts = studentName.split(" ");
-        const firstName = nameParts[0];
+        let studentData: { id: string; total_fee: number } | null = null;
+        if (lastName) {
+          const { data, error } = await supabase
+            .from("students")
+            .select("id, total_fee")
+            .eq("class_id", classData.id)
+            .ilike("first_name", firstName)
+            .ilike("last_name", lastName)
+            .maybeSingle();
+          if (!error && data) studentData = data;
+        } else {
+          const { data, error } = await supabase
+            .from("students")
+            .select("id, total_fee")
+            .eq("class_id", classData.id)
+            .ilike("first_name", firstName);
+          if (!error && data && data.length === 1) {
+            studentData = data[0];
+          } else if (!error && data && data.length > 1) {
+            results.errors.push(`Row ${i + 1}: Multiple students named "${firstName}" found in class "${className}". Provide Last Name.`);
+            results.failed++;
+            continue;
+          }
+        }
 
-        const { data: studentData, error: studentError } = await supabase
-          .from("students")
-          .select("id, total_fee")
-          .eq("class_id", classData.id)
-          .ilike("first_name", firstName)
-          .maybeSingle();
-
-        if (studentError || !studentData) {
-          results.errors.push(`Row ${i + 1}: Student "${studentName}" not found in class "${className}"`);
+        if (!studentData) {
+          results.errors.push(`Row ${i + 1}: Student "${displayName}" not found in class "${className}"`);
           results.failed++;
           continue;
         }
@@ -154,7 +198,7 @@ const handler = async (req: Request): Promise<Response> => {
           if (updateError) {
             console.error("Error updating student fee:", updateError);
           } else {
-            console.log(`Updated total fee for ${studentName} to ${totalFee}`);
+            console.log(`Updated total fee for ${displayName} to ${totalFee}`);
           }
         }
 
@@ -177,12 +221,12 @@ const handler = async (req: Request): Promise<Response> => {
             });
 
           if (feeError) {
-            results.errors.push(`Row ${i + 1}: Failed to update fee record for ${studentName}: ${feeError.message}`);
+            results.errors.push(`Row ${i + 1}: Failed to update fee record for ${displayName}: ${feeError.message}`);
             results.failed++;
             continue;
           }
 
-          console.log(`Marked fee as paid for ${studentName} - ${monthName} ${year}`);
+          console.log(`Marked fee as paid for ${displayName} - ${monthRaw} ${year}`);
         }
 
         results.success++;
