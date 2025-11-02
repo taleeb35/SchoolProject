@@ -312,23 +312,6 @@ const Fees = () => {
             Track and manage student fee payments
           </p>
         </div>
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,.xlsx,.xls"
-            onChange={handleImportExcel}
-            className="hidden"
-          />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isImporting}
-            variant="outline"
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            {isImporting ? "Importing..." : "Import CSV/Excel"}
-          </Button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

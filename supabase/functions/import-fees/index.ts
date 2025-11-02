@@ -74,6 +74,12 @@ const handler = async (req: Request): Promise<Response> => {
       errors: [] as string[],
     };
 
+    // Cache class students to avoid repeated queries per class
+    const classStudentsCache = new Map<string, { id: string; first_name: string; last_name: string | null; total_fee: number }[]>();
+
+    // Normalization helper for name comparison
+    const normalize = (s: string) => s.toLowerCase().replace(/[\.`'\"]+/g, "").replace(/\s+/g, " ").trim();
+
     // Month name to number mapping
     const monthMap: { [key: string]: number } = {
       january: 1, february: 2, march: 3, april: 4,
@@ -162,31 +168,51 @@ const handler = async (req: Request): Promise<Response> => {
           continue;
         }
 
-        // Find the student by name and class
+        // Find the student by name and class using normalized comparison with caching
         let studentData: { id: string; total_fee: number } | null = null;
-        if (lastName) {
-          const { data, error } = await supabase
+
+        // Load students for class from cache or DB
+        let classStudents = classStudentsCache.get(classData.id);
+        if (!classStudents) {
+          const { data: fetchedStudents, error: studentsErr } = await supabase
             .from("students")
-            .select("id, total_fee")
-            .eq("class_id", classData.id)
-            .ilike("first_name", firstName)
-            .ilike("last_name", lastName)
-            .maybeSingle();
-          if (!error && data) studentData = data;
-        } else {
-          const { data, error } = await supabase
-            .from("students")
-            .select("id, total_fee")
-            .eq("class_id", classData.id)
-            .ilike("first_name", firstName);
-          if (!error && data && data.length === 1) {
-            studentData = data[0];
-          } else if (!error && data && data.length > 1) {
+            .select("id, first_name, last_name, total_fee")
+            .eq("class_id", classData.id);
+          if (studentsErr) {
+            results.errors.push(`Row ${i + 1}: Unable to load students for class "${className}"`);
+            results.failed++;
+            continue;
+          }
+          classStudents = fetchedStudents || [];
+          classStudentsCache.set(classData.id, classStudents);
+        }
+
+        const fNorm = normalize(firstName);
+        const lNorm = normalize(lastName || "");
+
+        // Exact first+last match
+        let candidate = classStudents.find(s => normalize(s.first_name) === fNorm && normalize(s.last_name || "") === lNorm);
+
+        // Fallback: startsWith on first name with exact last name
+        if (!candidate && lNorm) {
+          candidate = classStudents.find(s => normalize(s.first_name).startsWith(fNorm) && normalize(s.last_name || "") === lNorm);
+        }
+
+        // If no last name provided, ensure unique match by first name
+        if (!candidate && !lNorm) {
+          const matches = classStudents.filter(s => normalize(s.first_name).startsWith(fNorm));
+          if (matches.length === 1) candidate = matches[0];
+          else if (matches.length > 1) {
             results.errors.push(`Row ${i + 1}: Multiple students named "${firstName}" found in class "${className}". Provide Last Name.`);
             results.failed++;
             continue;
           }
         }
+
+        if (candidate) {
+          studentData = { id: candidate.id, total_fee: Number(candidate.total_fee) };
+        }
+
 
         if (!studentData) {
           results.errors.push(`Row ${i + 1}: Student "${displayName}" not found in class "${className}"`);
