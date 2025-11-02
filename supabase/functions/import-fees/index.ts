@@ -1,220 +1,156 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.1";
+// supabase/functions/import-fees/index.ts
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import Papa from 'https://esm.sh/papaparse@5.3.0'
+import { Database } from '../_shared/types.ts' // Import shared types
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Month name to number mapping
+const monthMap: { [key: string]: number } = {
+  'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+  'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
 };
 
-const handler = async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+// Main function logic
+async function processImport(csvContent: string) {
+  // Create Supabase Admin client
+  const supabaseAdmin = createClient<Database>(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+
+  // Parse the CSV content
+  const { data: rows, errors: parseErrors } = Papa.parse(csvContent, {
+    header: true,
+    skipEmptyLines: true,
+  });
+
+  if (parseErrors.length > 0) {
+    throw new Error(`CSV Parsing Error: ${parseErrors[0].message}`);
+  }
+
+  let processedCount = 0;
+  const errorDetails: string[] = [];
+
+  for (const row of rows) {
+    try {
+      // 1. Clean and get data from CSV row
+      const studentName = (row['Student Name'] || '').trim();
+      const className = (row['Class Name'] || '').trim();
+      const totalFee = parseFloat(row['Total Fee']);
+      const feePaid = (row['Fee Paid'] || '').trim().toLowerCase() === 'yes';
+      const monthName = (row['Month'] || '').trim().toLowerCase();
+      const year = parseInt(row['Year']);
+
+      if (!studentName || !className || !monthName || !year) {
+        throw new Error(`Skipping row. Missing required fields: ${JSON.stringify(row)}`);
+      }
+
+      // 2. Convert month name to number
+      const month = monthMap[monthName];
+      if (!month) {
+        throw new Error(`Invalid month name: "${row['Month']}" for student ${studentName}`);
+      }
+
+      // 3. Find Class ID from Class Name
+      const { data: classData, error: classError } = await supabaseAdmin
+        .from('classes')
+        .select('id')
+        .eq('name', className)
+        .single();
+
+      if (classError || !classData) {
+        throw new Error(`Class not found: "${className}" for student ${studentName}`);
+      }
+      const classId = classData.id;
+
+      // 4. Find Student ID (This is the fragile part)
+      // Attempt to split "M. Khurram" into "M." and "Khurram"
+      const nameParts = studentName.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      const { data: studentData, error: studentError } = await supabaseAdmin
+        .from('students')
+        .select('id, total_fee') // Also grab student's default fee
+        .eq('first_name', firstName)
+        .eq('last_name', lastName)
+        .eq('class_id', classId)
+        .single();
+
+      if (studentError || !studentData) {
+        throw new Error(`Student not found: "${studentName}" in class "${className}" (Attempted: ${firstName} ${lastName})`);
+      }
+      const studentId = studentData.id;
+
+      // 5. Determine the fee amount
+      // Use the amount from the CSV if provided, otherwise fall back to student's default fee
+      const amount = (totalFee && totalFee > 0) ? totalFee : studentData.total_fee;
+
+      // 6. Prepare the fee record for upsert
+      const feeRecord = {
+        student_id: studentId,
+        month: month,
+        year: year,
+        is_paid: feePaid,
+        amount: amount,
+        payment_date: feePaid ? new Date().toISOString() : null,
+      };
+
+      // 7. Upsert the record
+      // This will update if a record for this student/month/year exists,
+      // or create it if it doesn't.
+      const { error: upsertError } = await supabaseAdmin
+        .from('fee_records')
+        .upsert(feeRecord, { onConflict: 'student_id, month, year' });
+
+      if (upsertError) {
+        throw new Error(`Failed to save record for ${studentName}: ${upsertError.message}`);
+      }
+
+      processedCount++;
+    } catch (err) {
+      console.error(err.message);
+      errorDetails.push(err.message);
+    }
+  }
+
+  // 8. Return the result
+  return {
+    message: `Import complete. ${processedCount} records processed. ${errorDetails.length} errors.`,
+    errors: errorDetails,
+  };
+}
+
+// Serve the function
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get the file from form data
-    const formData = await req.formData();
-    const file = formData.get("file") as File;
-
-    if (!file) {
-      throw new Error("No file uploaded");
+    const { csvContent } = await req.json()
+    if (!csvContent) {
+      throw new Error("No csvContent provided")
     }
 
-    console.log("Processing file:", file.name);
+    console.log("Import-fees function invoked, starting processing...");
+    const result = await processImport(csvContent);
+    console.log("Processing complete.");
 
-    // Read the file as text (CSV format)
-    const text = await file.text();
-    const lines = text.split("\n").filter(line => line.trim());
-    
-    if (lines.length < 2) {
-      throw new Error("File must contain at least a header row and one data row");
-    }
-
-    // Parse header to find column indices
-    const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/"/g, ""));
-    
-    const getColumnIndex = (possibleNames: string[]) => {
-      for (const name of possibleNames) {
-        const index = headers.findIndex(h => h.includes(name.toLowerCase()));
-        if (index !== -1) return index;
-      }
-      return -1;
-    };
-
-    const studentNameIdx = getColumnIndex(["student name", "student_name", "studentname", "name"]);
-    const classNameIdx = getColumnIndex(["class name", "class_name", "classname", "class"]);
-    const totalFeeIdx = getColumnIndex(["total fee", "total_fee", "totalfee", "fee"]);
-    const feePaidIdx = getColumnIndex(["fee paid", "fee_paid", "feepaid", "paid", "status"]);
-    const monthIdx = getColumnIndex(["month"]);
-    const yearIdx = getColumnIndex(["year"]);
-
-    console.log("Column indices:", { studentNameIdx, classNameIdx, totalFeeIdx, feePaidIdx, monthIdx, yearIdx });
-
-    if (studentNameIdx === -1 || classNameIdx === -1) {
-      throw new Error("Required columns not found. CSV must have 'Student Name' and 'Class Name' columns");
-    }
-
-    const results = {
-      success: 0,
-      failed: 0,
-      errors: [] as string[],
-    };
-
-    // Month name to number mapping
-    const monthMap: { [key: string]: number } = {
-      january: 1, february: 2, march: 3, april: 4,
-      may: 5, june: 6, july: 7, august: 8,
-      september: 9, october: 10, november: 11, december: 12,
-    };
-
-    // Process data rows
-    for (let i = 1; i < lines.length; i++) {
-      try {
-        const values = lines[i].split(",").map(v => v.trim().replace(/"/g, ""));
-        
-        const studentName = values[studentNameIdx] || "";
-        const className = values[classNameIdx] || "";
-        const totalFee = totalFeeIdx !== -1 ? Number(values[totalFeeIdx]) || 0 : 0;
-        const feePaid = feePaidIdx !== -1 ? values[feePaidIdx].toLowerCase() : "no";
-        const monthName = monthIdx !== -1 ? values[monthIdx].toLowerCase() : "";
-        const year = yearIdx !== -1 ? Number(values[yearIdx]) || new Date().getFullYear() : new Date().getFullYear();
-
-        if (!studentName || !className) {
-          results.errors.push(`Row ${i + 1}: Missing student name or class name`);
-          results.failed++;
-          continue;
-        }
-
-        // Convert month name to number
-        const monthNumber = monthMap[monthName];
-        if (!monthNumber) {
-          results.errors.push(`Row ${i + 1}: Invalid month "${monthName}" for student ${studentName}`);
-          results.failed++;
-          continue;
-        }
-
-        // Find the class - try exact match first, then without "Class" prefix
-        let { data: classData, error: classError } = await supabase
-          .from("classes")
-          .select("id")
-          .ilike("name", className)
-          .maybeSingle();
-
-        // If not found and className starts with "Class ", try without prefix
-        if (!classData && className.toLowerCase().startsWith("class ")) {
-          const classNameWithoutPrefix = className.substring(6).trim();
-          const { data: altClassData } = await supabase
-            .from("classes")
-            .select("id")
-            .ilike("name", classNameWithoutPrefix)
-            .maybeSingle();
-          classData = altClassData;
-        }
-
-        if (classError || !classData) {
-          // Get available classes for better error message
-          const { data: availableClasses } = await supabase
-            .from("classes")
-            .select("name")
-            .order("name");
-          const classNames = availableClasses?.map(c => c.name).join(", ") || "none";
-          results.errors.push(`Row ${i + 1}: Class "${className}" not found for student ${studentName}. Available classes: ${classNames}`);
-          results.failed++;
-          continue;
-        }
-
-        // Find the student by name and class
-        const nameParts = studentName.split(" ");
-        const firstName = nameParts[0];
-
-        const { data: studentData, error: studentError } = await supabase
-          .from("students")
-          .select("id, total_fee")
-          .eq("class_id", classData.id)
-          .ilike("first_name", firstName)
-          .maybeSingle();
-
-        if (studentError || !studentData) {
-          results.errors.push(`Row ${i + 1}: Student "${studentName}" not found in class "${className}"`);
-          results.failed++;
-          continue;
-        }
-
-        // Update student's total fee if provided and different
-        if (totalFee > 0 && totalFee !== studentData.total_fee) {
-          const { error: updateError } = await supabase
-            .from("students")
-            .update({ total_fee: totalFee })
-            .eq("id", studentData.id);
-
-          if (updateError) {
-            console.error("Error updating student fee:", updateError);
-          } else {
-            console.log(`Updated total fee for ${studentName} to ${totalFee}`);
-          }
-        }
-
-        // If fee is marked as paid, create/update fee record
-        if (feePaid === "yes" || feePaid === "y" || feePaid === "true" || feePaid === "paid" || feePaid === "1") {
-          const paymentDate = new Date().toISOString().split('T')[0];
-          const feeAmount = totalFee > 0 ? totalFee : studentData.total_fee;
-          
-          const { error: feeError } = await supabase
-            .from("fee_records")
-            .upsert({
-              student_id: studentData.id,
-              month: monthNumber,
-              year: year,
-              is_paid: true,
-              amount: feeAmount,
-              payment_date: paymentDate,
-            }, {
-              onConflict: 'student_id,month,year'
-            });
-
-          if (feeError) {
-            results.errors.push(`Row ${i + 1}: Failed to update fee record for ${studentName}: ${feeError.message}`);
-            results.failed++;
-            continue;
-          }
-
-          console.log(`Marked fee as paid for ${studentName} - ${monthName} ${year}`);
-        }
-
-        results.success++;
-      } catch (error: any) {
-        console.error(`Error processing row ${i + 1}:`, error);
-        results.errors.push(`Row ${i + 1}: ${error.message}`);
-        results.failed++;
-      }
-    }
-
-    console.log("Import completed:", results);
-
-    return new Response(
-      JSON.stringify(results),
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders,
-        },
-      }
-    );
-  } catch (error: any) {
-    console.error("Error in import-fees function:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    })
+  } catch (error) {
+    console.error("Function Error:", error.message);
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 400,
+    })
   }
-};
-
-serve(handler);
+})
