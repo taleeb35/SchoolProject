@@ -41,7 +41,13 @@ const handler = async (req: Request): Promise<Response> => {
     
     const getColumnIndex = (possibleNames: string[]) => {
       for (const name of possibleNames) {
-        const index = headers.findIndex(h => h.includes(name.toLowerCase()));
+        const index = headers.findIndex(h => {
+          const headerLower = h.toLowerCase();
+          const nameLower = name.toLowerCase();
+          // Exact match or match with spaces/underscores
+          return headerLower === nameLower || 
+                 headerLower.replace(/[_\s]/g, '') === nameLower.replace(/[_\s]/g, '');
+        });
         if (index !== -1) return index;
       }
       return -1;
@@ -49,7 +55,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const firstNameIdx = getColumnIndex(["first name", "first_name", "firstname", "given name", "given_name"]);
     const lastNameIdx = getColumnIndex(["last name", "last_name", "lastname", "surname", "family name", "family_name"]);
-    const studentNameIdx = getColumnIndex(["student name", "student_name", "studentname", "name"]);
+    const studentNameIdx = getColumnIndex(["student name", "student_name", "studentname", "full name", "fullname"]);
     const classNameIdx = getColumnIndex(["class name", "class_name", "classname", "class"]);
     const totalFeeIdx = getColumnIndex(["total fee", "total_fee", "totalfee", "fee"]);
     const feePaidIdx = getColumnIndex(["fee paid", "fee_paid", "feepaid", "paid", "status"]);
