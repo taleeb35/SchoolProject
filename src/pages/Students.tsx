@@ -49,6 +49,7 @@ interface Student {
   total_fee: number;
   joining_date: string;
   created_at: string;
+  display_order: number;
   classes: { name: string; monthly_fee: number };
 }
 
@@ -112,6 +113,7 @@ const Students = () => {
           monthly_fee
         )
       `)
+      .order("display_order")
       .order("first_name");
 
     if (error) {
