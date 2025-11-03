@@ -67,6 +67,7 @@ interface Student {
   joining_date: string;
   created_at: string;
   display_order: number;
+  comments: string | null;
   classes: { name: string; monthly_fee: number };
 }
 
@@ -95,6 +96,7 @@ const Students = () => {
     class_id: "",
     total_fee: "",
     joining_date: new Date().toISOString().split("T")[0],
+    comments: "",
   });
   const { toast } = useToast();
 
@@ -193,6 +195,7 @@ const Students = () => {
       class_id: "",
       total_fee: "",
       joining_date: new Date().toISOString().split("T")[0],
+      comments: "",
     });
     setCurrentStudent(null);
   };
@@ -207,6 +210,7 @@ const Students = () => {
       class_id: formData.class_id,
       total_fee: parseFloat(formData.total_fee) || 0,
       joining_date: formData.joining_date,
+      comments: formData.comments || null,
     });
 
     if (error) {
@@ -240,6 +244,7 @@ const Students = () => {
         class_id: formData.class_id,
         total_fee: parseFloat(formData.total_fee) || 0,
         joining_date: formData.joining_date,
+        comments: formData.comments || null,
       })
       .eq("id", currentStudent.id);
 
@@ -288,6 +293,7 @@ const Students = () => {
       class_id: student.class_id,
       total_fee: student.total_fee.toString(),
       joining_date: student.joining_date,
+      comments: student.comments || "",
     });
     setIsEditDialogOpen(true);
   };
@@ -384,7 +390,7 @@ const Students = () => {
         <TableCell>{student.classes.name}</TableCell>
         <TableCell>PKR {student.classes.monthly_fee.toLocaleString('en-PK')}</TableCell>
         <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
-        <TableCell>{new Date(student.joining_date).toLocaleDateString()}</TableCell>
+        <TableCell className="max-w-xs truncate">{student.comments || "-"}</TableCell>
         <TableCell className="text-right">
           <Button
             variant="ghost"
@@ -501,6 +507,15 @@ const Students = () => {
                   />
                 </div>
               </div>
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="add-comments">Comments (Optional)</Label>
+                <Input
+                  id="add-comments"
+                  value={formData.comments}
+                  onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
+                  placeholder="Add any notes about this student..."
+                />
+              </div>
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="outline">Cancel</Button>
@@ -573,7 +588,7 @@ const Students = () => {
                 <TableHead>Class</TableHead>
                 <TableHead>Class Fee</TableHead>
                 <TableHead>Total Fee</TableHead>
-                <TableHead>Joining Date</TableHead>
+                <TableHead>Comments</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -704,17 +719,26 @@ const Students = () => {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-joining_date">Joining Date</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-joining_date">Joining Date</Label>
+                  <Input
+                    id="edit-joining_date"
+                    type="date"
+                    value={formData.joining_date}
+                    onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="edit-comments">Comments (Optional)</Label>
                 <Input
-                  id="edit-joining_date"
-                  type="date"
-                  value={formData.joining_date}
-                  onChange={(e) => setFormData({ ...formData, joining_date: e.target.value })}
-                  required
+                  id="edit-comments"
+                  value={formData.comments}
+                  onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
+                  placeholder="Add any notes about this student..."
                 />
               </div>
-            </div>
             <DialogFooter>
               <DialogClose asChild>
                 <Button type="button" variant="outline" onClick={resetFormData}>Cancel</Button>

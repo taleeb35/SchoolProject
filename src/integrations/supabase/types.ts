@@ -263,6 +263,7 @@ export type Database = {
       students: {
         Row: {
           class_id: string
+          comments: string | null
           created_at: string
           display_order: number | null
           father_name: string | null
@@ -275,6 +276,7 @@ export type Database = {
         }
         Insert: {
           class_id: string
+          comments?: string | null
           created_at?: string
           display_order?: number | null
           father_name?: string | null
@@ -287,6 +289,7 @@ export type Database = {
         }
         Update: {
           class_id?: string
+          comments?: string | null
           created_at?: string
           display_order?: number | null
           father_name?: string | null
