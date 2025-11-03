@@ -264,6 +264,7 @@ export type Database = {
         Row: {
           class_id: string
           created_at: string
+          display_order: number | null
           father_name: string | null
           first_name: string
           id: string
@@ -275,6 +276,7 @@ export type Database = {
         Insert: {
           class_id: string
           created_at?: string
+          display_order?: number | null
           father_name?: string | null
           first_name: string
           id?: string
@@ -286,6 +288,7 @@ export type Database = {
         Update: {
           class_id?: string
           created_at?: string
+          display_order?: number | null
           father_name?: string | null
           first_name?: string
           id?: string

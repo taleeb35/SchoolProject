@@ -3,7 +3,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Upload } from "lucide-react";
+import { GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   Select,
   SelectContent,
@@ -37,6 +54,7 @@ interface Student {
   last_name: string;
   phone: string | null;
   total_fee: number;
+  display_order: number;
 }
 
 interface Class {
@@ -51,6 +69,68 @@ interface FeeRecord {
   amount: number;
   payment_date: string | null;
 }
+
+// Sortable row component
+interface SortableStudentRowProps {
+  student: Student;
+  isPaid: boolean;
+  onToggleFee: (student: Student) => void;
+}
+
+const SortableStudentRow = ({ student, isPaid, onToggleFee }: SortableStudentRowProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: student.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      <TableCell>
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing"
+        >
+          <GripVertical className="h-5 w-5 text-muted-foreground" />
+        </div>
+      </TableCell>
+      <TableCell>{student.first_name} {student.last_name}</TableCell>
+      <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
+      <TableCell>
+        {isPaid ? (
+          <Badge className="bg-success">Paid</Badge>
+        ) : (
+          <Badge variant="secondary">Unpaid</Badge>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id={`fee-${student.id}`}
+            checked={isPaid}
+            onCheckedChange={() => onToggleFee(student)}
+          />
+          <label
+            htmlFor={`fee-${student.id}`}
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
+            Mark as {isPaid ? "Unpaid" : "Paid"}
+          </label>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+};
 
 const Fees = () => {
   const [classes, setClasses] = useState<Class[]>([]);
@@ -129,8 +209,9 @@ const Fees = () => {
   const loadStudents = async (classId: string) => {
     const { data: studentsData, error: studentsError } = await supabase
       .from("students")
-      .select("id, first_name, last_name, phone, total_fee")
+      .select("id, first_name, last_name, phone, total_fee, display_order")
       .eq("class_id", classId)
+      .order("display_order")
       .order("first_name");
 
     if (studentsError) {
@@ -257,49 +338,59 @@ const Fees = () => {
     setCurrentPage(1);
   }, [searchQuery, feeStatusFilter, pageSize, selectedClass]);
 
-  const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
-    setIsImporting(true);
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
 
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = paginatedStudents.findIndex((s) => s.id === active.id);
+    const newIndex = paginatedStudents.findIndex((s) => s.id === over.id);
+
+    // Reorder the students array
+    const newStudents = arrayMove(paginatedStudents, oldIndex, newIndex);
+    
+    // Update local state immediately for smooth UI
+    setStudents((prev) => {
+      const updatedStudents = [...prev];
+      const globalOldIndex = updatedStudents.findIndex((s) => s.id === active.id);
+      const globalNewIndex = updatedStudents.findIndex((s) => s.id === over.id);
+      return arrayMove(updatedStudents, globalOldIndex, globalNewIndex);
+    });
+
+    // Update display_order in database
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      const updates = newStudents.map((student, index) => ({
+        id: student.id,
+        display_order: startIndex + index + 1,
+      }));
 
-      const { data, error } = await supabase.functions.invoke("import-fees", {
-        body: formData,
-      });
-
-      if (error) throw error;
-
-      const result = data as { success: number; failed: number; errors: string[] };
+      for (const update of updates) {
+        await supabase
+          .from("students")
+          .update({ display_order: update.display_order })
+          .eq("id", update.id);
+      }
 
       toast({
-        title: "Import Complete",
-        description: `Successfully processed ${result.success} records. ${result.failed} failed.`,
-        variant: result.failed > 0 ? "destructive" : "default",
+        title: "Order Updated",
+        description: "Student order has been saved",
       });
-
-      if (result.errors.length > 0) {
-        console.log("Import errors:", result.errors);
-      }
-
-      // Reload the current view
-      if (selectedClass) {
-        loadStudents(selectedClass);
-      }
-    } catch (error: any) {
+    } catch (error) {
       toast({
         variant: "destructive",
-        title: "Import Failed",
-        description: error.message || "Failed to import Excel file",
+        title: "Error",
+        description: "Failed to update student order",
       });
-    } finally {
-      setIsImporting(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      // Reload to get correct order from database
+      loadStudents(selectedClass);
     }
   };
 
@@ -389,57 +480,46 @@ const Fees = () => {
       {selectedClass && students.length > 0 && (
         <div className="space-y-4">
           <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student Name</TableHead>
-                  <TableHead>Fee Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedStudents.length > 0 ? (
-                  paginatedStudents.map((student) => {
-                    const isPaid = getStudentFeeStatus(student.id);
-                    return (
-                      <TableRow key={student.id}>
-                        <TableCell>{student.first_name} {student.last_name}</TableCell>
-                        <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
-                        <TableCell>
-                          {isPaid ? (
-                            <Badge className="bg-success">Paid</Badge>
-                          ) : (
-                            <Badge variant="secondary">Unpaid</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`fee-${student.id}`}
-                              checked={isPaid}
-                              onCheckedChange={() => toggleFeeStatus(student)}
-                            />
-                            <label
-                              htmlFor={`fee-${student.id}`}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              Mark as {isPaid ? "Unpaid" : "Paid"}
-                            </label>
-                          </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12"></TableHead>
+                    <TableHead>Student Name</TableHead>
+                    <TableHead>Fee Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <SortableContext
+                    items={paginatedStudents.map((s) => s.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {paginatedStudents.length > 0 ? (
+                      paginatedStudents.map((student) => (
+                        <SortableStudentRow
+                          key={student.id}
+                          student={student}
+                          isPaid={getStudentFeeStatus(student.id)}
+                          onToggleFee={toggleFeeStatus}
+                        />
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center">
+                          No students found matching your search
                         </TableCell>
                       </TableRow>
-                    );
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center">
-                      No students found matching your search
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                    )}
+                  </SortableContext>
+                </TableBody>
+              </Table>
+            </DndContext>
           </div>
 
           {totalPages > 1 && (
