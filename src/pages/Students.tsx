@@ -37,7 +37,24 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Edit, Search } from "lucide-react";
+import { Plus, Trash2, Edit, Search, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Student {
   id: string;
@@ -80,6 +97,13 @@ const Students = () => {
     joining_date: new Date().toISOString().split("T")[0],
   });
   const { toast } = useToast();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     loadStudents();
@@ -268,6 +292,120 @@ const Students = () => {
     setIsEditDialogOpen(true);
   };
 
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = currentStudents.findIndex((s) => s.id === active.id);
+    const newIndex = currentStudents.findIndex((s) => s.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reorderedStudents = arrayMove(currentStudents, oldIndex, newIndex);
+    
+    // Update local state immediately
+    const updatedFiltered = [...filteredStudents];
+    const startIdx = (currentPage - 1) * itemsPerPage;
+    reorderedStudents.forEach((student, idx) => {
+      updatedFiltered[startIdx + idx] = student;
+    });
+    setFilteredStudents(updatedFiltered);
+
+    // Update display_order in database
+    try {
+      const updates = reorderedStudents.map((student, index) => ({
+        id: student.id,
+        display_order: startIdx + index,
+      }));
+
+      for (const update of updates) {
+        const { error } = await supabase
+          .from("students")
+          .update({ display_order: update.display_order })
+          .eq("id", update.id);
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Success",
+        description: "Student order updated successfully",
+      });
+      
+      await loadStudents();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error updating order",
+        description: error.message,
+      });
+      await loadStudents();
+    }
+  };
+
+  interface SortableStudentRowProps {
+    student: Student;
+  }
+
+  const SortableStudentRow = ({ student }: SortableStudentRowProps) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: student.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+      <TableRow ref={setNodeRef} style={style}>
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <button
+              className="cursor-grab active:cursor-grabbing touch-none"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+        </TableCell>
+        <TableCell className="font-medium">{student.first_name}</TableCell>
+        <TableCell>{student.last_name}</TableCell>
+        <TableCell>{student.father_name || "-"}</TableCell>
+        <TableCell>{student.phone || "-"}</TableCell>
+        <TableCell>{student.classes.name}</TableCell>
+        <TableCell>PKR {student.classes.monthly_fee.toLocaleString('en-PK')}</TableCell>
+        <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
+        <TableCell>{new Date(student.joining_date).toLocaleDateString()}</TableCell>
+        <TableCell className="text-right">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => openEditDialog(student)}
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleDelete(student.id)}
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -419,60 +557,46 @@ const Students = () => {
       </div>
 
       <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>First Name</TableHead>
-              <TableHead>Last Name</TableHead>
-              <TableHead>Father Name</TableHead>
-              <TableHead>Contact Number</TableHead>
-              <TableHead>Class</TableHead>
-              <TableHead>Class Fee</TableHead>
-              <TableHead>Total Fee</TableHead>
-              <TableHead>Joining Date</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {currentStudents.length > 0 ? (
-              currentStudents.map((student) => (
-                <TableRow key={student.id}>
-                  <TableCell className="font-medium">{student.first_name}</TableCell>
-                  <TableCell>{student.last_name}</TableCell>
-                  <TableCell>{student.father_name || "-"}</TableCell>
-                  <TableCell>{student.phone || "-"}</TableCell>
-                  <TableCell>{student.classes.name}</TableCell>
-                  <TableCell>PKR {student.classes.monthly_fee.toLocaleString('en-PK')}</TableCell>
-                  <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
-                  <TableCell>{new Date(student.joining_date).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEditDialog(student)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(student.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]"></TableHead>
+                <TableHead>First Name</TableHead>
+                <TableHead>Last Name</TableHead>
+                <TableHead>Father Name</TableHead>
+                <TableHead>Contact Number</TableHead>
+                <TableHead>Class</TableHead>
+                <TableHead>Class Fee</TableHead>
+                <TableHead>Total Fee</TableHead>
+                <TableHead>Joining Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {currentStudents.length > 0 ? (
+                <SortableContext
+                  items={currentStudents.map((s) => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {currentStudents.map((student) => (
+                    <SortableStudentRow key={student.id} student={student} />
+                  ))}
+                </SortableContext>
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={10} className="text-center">
+                    {searchQuery ? "No students match your search." : "No students found. Add a new student to get started."}
                   </TableCell>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center">
-                  {searchQuery ? "No students match your search." : "No students found. Add a new student to get started."}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              )}
+            </TableBody>
+          </Table>
+        </DndContext>
       </div>
 
       {/* Pagination */}
