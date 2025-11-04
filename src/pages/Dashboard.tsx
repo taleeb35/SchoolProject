@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, GraduationCap, Briefcase, TrendingUp, TrendingDown } from "lucide-react";
+import { Users, GraduationCap, Briefcase, TrendingUp, TrendingDown, Filter } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -18,11 +20,16 @@ const Dashboard = () => {
     revenue: number;
     expenses: number;
   }>>([]);
+  const [startMonth, setStartMonth] = useState(3); // March
+  const [endMonth, setEndMonth] = useState(11); // November
 
   useEffect(() => {
     loadStats();
-    loadProfitLossData();
   }, []);
+
+  useEffect(() => {
+    loadProfitLossData();
+  }, [startMonth, endMonth]);
 
   const loadStats = async () => {
     const [classesRes, studentsRes, employeesRes] = await Promise.all([
@@ -42,7 +49,11 @@ const Dashboard = () => {
 
   const loadProfitLossData = async () => {
     const currentYear = 2025;
-    const months = [3, 4, 5, 6, 7, 8, 9, 10, 11]; // Mar to Nov 2025
+    // Generate array of months from startMonth to endMonth
+    const months = [];
+    for (let i = startMonth; i <= endMonth; i++) {
+      months.push(i);
+    }
     
     const monthlyData = await Promise.all(
       months.map(async (month) => {
@@ -92,17 +103,29 @@ const Dashboard = () => {
   const chartConfig = {
     profit: {
       label: "Profit",
-      color: "hsl(var(--chart-1))",
+      color: "hsl(142, 76%, 36%)",
     },
     revenue: {
       label: "Revenue",
-      color: "hsl(var(--chart-2))",
+      color: "hsl(217, 91%, 60%)",
     },
     expenses: {
       label: "Expenses",
-      color: "hsl(var(--chart-3))",
+      color: "hsl(0, 84%, 60%)",
     },
   };
+
+  const months = [
+    { value: 3, label: "March" },
+    { value: 4, label: "April" },
+    { value: 5, label: "May" },
+    { value: 6, label: "June" },
+    { value: 7, label: "July" },
+    { value: 8, label: "August" },
+    { value: 9, label: "September" },
+    { value: 10, label: "October" },
+    { value: 11, label: "November" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -152,14 +175,49 @@ const Dashboard = () => {
       {profitLossData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Profit & Loss Overview (Mar - Nov 2025)
-              {profitLossData[profitLossData.length - 1]?.profit >= 0 ? (
-                <TrendingUp className="h-5 w-5 text-green-500" />
-              ) : (
-                <TrendingDown className="h-5 w-5 text-red-500" />
-              )}
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                Profit & Loss Overview (2025)
+                {profitLossData[profitLossData.length - 1]?.profit >= 0 ? (
+                  <TrendingUp className="h-5 w-5 text-green-500" />
+                ) : (
+                  <TrendingDown className="h-5 w-5 text-red-500" />
+                )}
+              </CardTitle>
+              <div className="flex items-center gap-4">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm">From:</Label>
+                  <Select value={startMonth.toString()} onValueChange={(v) => setStartMonth(Number(v))}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.map((m) => (
+                        <SelectItem key={m.value} value={m.value.toString()} disabled={m.value > endMonth}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm">To:</Label>
+                  <Select value={endMonth.toString()} onValueChange={(v) => setEndMonth(Number(v))}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {months.map((m) => (
+                        <SelectItem key={m.value} value={m.value.toString()} disabled={m.value < startMonth}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[400px] w-full">
@@ -167,16 +225,16 @@ const Dashboard = () => {
                 <AreaChart data={profitLossData}>
                   <defs>
                     <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.1}/>
                     </linearGradient>
                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-2))" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="hsl(var(--chart-2))" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.1}/>
                     </linearGradient>
                     <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-3))" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="hsl(var(--chart-3))" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.1}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -197,26 +255,26 @@ const Dashboard = () => {
                   <Area 
                     type="monotone" 
                     dataKey="revenue" 
-                    stroke="hsl(var(--chart-2))" 
+                    stroke="hsl(217, 91%, 60%)" 
                     fillOpacity={1} 
                     fill="url(#colorRevenue)"
-                    strokeWidth={2}
+                    strokeWidth={3}
                   />
                   <Area 
                     type="monotone" 
                     dataKey="expenses" 
-                    stroke="hsl(var(--chart-3))" 
+                    stroke="hsl(0, 84%, 60%)" 
                     fillOpacity={1} 
                     fill="url(#colorExpenses)"
-                    strokeWidth={2}
+                    strokeWidth={3}
                   />
                   <Area 
                     type="monotone" 
                     dataKey="profit" 
-                    stroke="hsl(var(--chart-1))" 
+                    stroke="hsl(142, 76%, 36%)" 
                     fillOpacity={1} 
                     fill="url(#colorProfit)"
-                    strokeWidth={2}
+                    strokeWidth={3}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -224,19 +282,19 @@ const Dashboard = () => {
             <div className="mt-4 grid grid-cols-3 gap-4 text-center">
               <div>
                 <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-xl font-bold text-chart-2">
+                <p className="text-xl font-bold" style={{ color: 'hsl(217, 91%, 60%)' }}>
                   PKR {profitLossData.reduce((sum, d) => sum + d.revenue, 0).toLocaleString('en-PK')}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Expenses</p>
-                <p className="text-xl font-bold text-chart-3">
+                <p className="text-xl font-bold" style={{ color: 'hsl(0, 84%, 60%)' }}>
                   PKR {profitLossData.reduce((sum, d) => sum + d.expenses, 0).toLocaleString('en-PK')}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Net Profit</p>
-                <p className={`text-xl font-bold ${profitLossData.reduce((sum, d) => sum + d.profit, 0) >= 0 ? 'text-chart-1' : 'text-red-500'}`}>
+                <p className={`text-xl font-bold`} style={{ color: profitLossData.reduce((sum, d) => sum + d.profit, 0) >= 0 ? 'hsl(142, 76%, 36%)' : 'hsl(0, 84%, 60%)' }}>
                   PKR {profitLossData.reduce((sum, d) => sum + d.profit, 0).toLocaleString('en-PK')}
                 </p>
               </div>
