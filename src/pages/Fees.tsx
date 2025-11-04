@@ -55,6 +55,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card } from "@/components/ui/card";
 
 interface Student {
   id: string;
@@ -423,6 +424,23 @@ const Fees = () => {
     return matchesSearch && matchesFeeStatus;
   });
 
+  // Calculate total fee based on filter
+  const calculateTotalFees = () => {
+    return filteredStudents.reduce((total, student) => {
+      const feeRecord = feeRecords.find((r) => r.student_id === student.id);
+      const isPaid = getStudentFeeStatus(student.id);
+      
+      if (feeStatusFilter === "paid" && !isPaid) return total;
+      if (feeStatusFilter === "unpaid" && isPaid) return total;
+      
+      // Use the amount from fee_records if it exists (custom amount), otherwise use student's total_fee
+      const amount = feeRecord ? feeRecord.amount : student.total_fee;
+      return total + amount;
+    }, 0);
+  };
+
+  const totalFees = calculateTotalFees();
+
   // Pagination logic
   const totalPages = Math.ceil(filteredStudents.length / pageSize);
   const startIndex = (currentPage - 1) * pageSize;
@@ -575,6 +593,21 @@ const Fees = () => {
 
       {selectedClass && students.length > 0 && (
         <div className="space-y-4">
+          <Card className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-muted-foreground">
+                  Total Amount {feeStatusFilter !== "all" && `(${feeStatusFilter.charAt(0).toUpperCase() + feeStatusFilter.slice(1)})`}
+                </h3>
+                <p className="text-3xl font-bold text-primary mt-1">
+                  PKR {totalFees.toLocaleString('en-PK')}
+                </p>
+              </div>
+              <div className="text-right text-sm text-muted-foreground">
+                <p>{filteredStudents.length} student{filteredStudents.length !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+          </Card>
           <div className="border rounded-lg">
             <DndContext
               sensors={sensors}
