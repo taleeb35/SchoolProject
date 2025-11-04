@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Pencil } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -28,6 +28,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -74,10 +82,12 @@ interface FeeRecord {
 interface SortableStudentRowProps {
   student: Student;
   isPaid: boolean;
-  onToggleFee: (student: Student) => void;
+  feeRecord: FeeRecord | undefined;
+  onToggleFee: (student: Student, customAmount?: number) => void;
+  onEditAmount: (student: Student) => void;
 }
 
-const SortableStudentRow = ({ student, isPaid, onToggleFee }: SortableStudentRowProps) => {
+const SortableStudentRow = ({ student, isPaid, feeRecord, onToggleFee, onEditAmount }: SortableStudentRowProps) => {
   const {
     attributes,
     listeners,
@@ -93,6 +103,8 @@ const SortableStudentRow = ({ student, isPaid, onToggleFee }: SortableStudentRow
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const hasCustomAmount = feeRecord && feeRecord.amount !== student.total_fee;
+
   return (
     <TableRow ref={setNodeRef} style={style}>
       <TableCell>
@@ -105,7 +117,32 @@ const SortableStudentRow = ({ student, isPaid, onToggleFee }: SortableStudentRow
         </div>
       </TableCell>
       <TableCell>{student.first_name} {student.last_name}</TableCell>
-      <TableCell>PKR {student.total_fee.toLocaleString('en-PK')}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <div className="flex flex-col">
+            {hasCustomAmount ? (
+              <>
+                <span className="text-sm line-through text-muted-foreground">
+                  PKR {student.total_fee.toLocaleString('en-PK')}
+                </span>
+                <span className="text-sm font-medium text-destructive">
+                  PKR {feeRecord.amount.toLocaleString('en-PK')}
+                </span>
+              </>
+            ) : (
+              <span>PKR {student.total_fee.toLocaleString('en-PK')}</span>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onEditAmount(student)}
+            className="h-7 w-7 p-0"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </TableCell>
       <TableCell>
         {isPaid ? (
           <Badge className="bg-success">Paid</Badge>
@@ -144,6 +181,8 @@ const Fees = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [isImporting, setIsImporting] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [customAmount, setCustomAmount] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -266,10 +305,67 @@ const Fees = () => {
     }
   };
 
-  const toggleFeeStatus = async (student: Student) => {
+  const handleEditAmount = (student: Student) => {
+    const existingRecord = feeRecords.find((r) => r.student_id === student.id);
+    setEditingStudent(student);
+    setCustomAmount(existingRecord ? existingRecord.amount.toString() : student.total_fee.toString());
+  };
+
+  const handleSaveCustomAmount = async () => {
+    if (!editingStudent) return;
+    
+    const amount = parseFloat(customAmount);
+    if (isNaN(amount) || amount < 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter a valid amount",
+      });
+      return;
+    }
+
+    const existingRecord = feeRecords.find((r) => r.student_id === editingStudent.id);
+    
+    // Use upsert to save the custom amount
+    const { error } = await supabase
+      .from("fee_records")
+      .upsert({
+        student_id: editingStudent.id,
+        month: selectedMonth,
+        year: selectedYear,
+        is_paid: existingRecord?.is_paid || false,
+        amount: amount,
+        payment_date: existingRecord?.payment_date || null,
+      }, {
+        onConflict: 'student_id,month,year'
+      });
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Custom fee amount saved",
+      });
+      loadStudents(selectedClass);
+      setEditingStudent(null);
+      setCustomAmount("");
+    }
+  };
+
+  const toggleFeeStatus = async (student: Student, customAmountOverride?: number) => {
     const existingRecord = feeRecords.find((r) => r.student_id === student.id);
     const newIsPaid = existingRecord ? !existingRecord.is_paid : true;
     const paymentDate = new Date().toISOString().split('T')[0];
+    
+    // Use custom amount if provided, otherwise use existing record amount or student's total fee
+    const amountToUse = customAmountOverride !== undefined 
+      ? customAmountOverride 
+      : (existingRecord?.amount || student.total_fee);
 
     // Use upsert to avoid duplicate key errors
     const { error } = await supabase
@@ -279,7 +375,7 @@ const Fees = () => {
         month: selectedMonth,
         year: selectedYear,
         is_paid: newIsPaid,
-        amount: newIsPaid ? student.total_fee : 0,
+        amount: newIsPaid ? amountToUse : 0,
         payment_date: newIsPaid ? paymentDate : null,
       }, {
         onConflict: 'student_id,month,year'
@@ -501,14 +597,19 @@ const Fees = () => {
                     strategy={verticalListSortingStrategy}
                   >
                     {paginatedStudents.length > 0 ? (
-                      paginatedStudents.map((student) => (
-                        <SortableStudentRow
-                          key={student.id}
-                          student={student}
-                          isPaid={getStudentFeeStatus(student.id)}
-                          onToggleFee={toggleFeeStatus}
-                        />
-                      ))
+                      paginatedStudents.map((student) => {
+                        const feeRecord = feeRecords.find((r) => r.student_id === student.id);
+                        return (
+                          <SortableStudentRow
+                            key={student.id}
+                            student={student}
+                            isPaid={getStudentFeeStatus(student.id)}
+                            feeRecord={feeRecord}
+                            onToggleFee={toggleFeeStatus}
+                            onEditAmount={handleEditAmount}
+                          />
+                        );
+                      })
                     ) : (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center">
@@ -564,6 +665,43 @@ const Fees = () => {
           No students found in this class
         </p>
       )}
+
+      <Dialog open={!!editingStudent} onOpenChange={(open) => !open && setEditingStudent(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Fee Amount</DialogTitle>
+            <DialogDescription>
+              Enter the custom fee amount for {editingStudent?.first_name} {editingStudent?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Original Fee</Label>
+              <Input
+                value={`PKR ${editingStudent?.total_fee.toLocaleString('en-PK')}`}
+                disabled
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Custom Amount</Label>
+              <Input
+                type="number"
+                placeholder="Enter custom amount"
+                value={customAmount}
+                onChange={(e) => setCustomAmount(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingStudent(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveCustomAmount}>
+              Save Amount
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
