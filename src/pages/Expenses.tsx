@@ -212,23 +212,15 @@ const Expenses = () => {
   };
 
   const calculateProfitLoss = async () => {
-    // Calculate total fees collected strictly from each student's Total Fee
+    // Calculate total fees collected from actual amounts paid in fee_records
     const { data: paidFeeRecords } = await supabase
       .from("fee_records")
-      .select("student_id")
+      .select("amount")
       .eq("month", selectedMonth)
       .eq("year", selectedYear)
       .eq("is_paid", true);
 
-    const studentIds = Array.from(new Set((paidFeeRecords || []).map((r: { student_id: string }) => r.student_id)));
-    let totalFees = 0;
-    if (studentIds.length > 0) {
-      const { data: studentsData } = await supabase
-        .from("students")
-        .select("id, total_fee")
-        .in("id", studentIds);
-      totalFees = studentsData?.reduce((sum: number, s: { total_fee: number }) => sum + Number(s.total_fee), 0) || 0;
-    }
+    const totalFees = paidFeeRecords?.reduce((sum, record) => sum + Number(record.amount), 0) || 0;
 
     // Calculate total employee salaries for this month
     const { data: salaryData } = await supabase
